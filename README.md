@@ -1,4 +1,4 @@
-# ZAEA — Zairyx Autonomous Engineering Agent
+# ForgeOps AI — Autonomous Engineering Agent
 
 <div align="center">
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square" />
@@ -11,7 +11,7 @@
 
 <br/>
 
-> **ZAEA** é um sistema de agentes autônomos de engenharia de software que monitora, diagnostica, corrige e valida plataformas Next.js + Supabase — com zero intervenção humana para falhas triviais.
+> **ForgeOps AI** é um sistema de agentes autônomos de engenharia de software que monitora, diagnostica, corrige e valida plataformas Next.js + Supabase — com zero intervenção humana para falhas triviais.
 
 ---
 
@@ -19,12 +19,12 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│  MAESTRO            │  FORGE (este repo)     │
-│  Chat AI Orchestrator│  TI/DevOps Orchestrator│
-│  → Zai IA            │  → Scanner             │
-│  → Suporte           │  → Surgeon             │
-│  → Prospecção        │  → Validator           │
-│  → Onboarding        │  → Sentinel            │
+│  MAESTRO            │  FORGEOPS AI (este repo) │
+│  Chat AI Orchestrator│  TI/DevOps Orchestrator  │
+│  → Zai IA            │  → Scanner               │
+│  → Suporte           │  → Surgeon               │
+│  → Prospecção        │  → Validator             │
+│  → Onboarding        │  → Sentinel              │
 └─────────────────────────────────────────────┘
 ```
 
@@ -37,7 +37,7 @@
 
 ---
 
-## Agentes do sistema Forge (ZAEA)
+## Agentes do sistema ForgeOps AI
 
 | Agente | Função | Trigger |
 |--------|--------|---------|
@@ -63,9 +63,9 @@ RISKY    → Forge documenta + escala para humano via Telegram
 GitHub Actions     — Runner gratuito (2000min/mês) + cron scheduler
 Groq llama-3.3-70b — Análise, diagnóstico, geração de patches
 Supabase           — agent_tasks + agent_knowledge (base evolutiva)
-Telegram Bot       — Alertas em tempo real (@ZaiSentinelBot)
+Telegram Bot       — Alertas em tempo real (@ForgeOpsBot)
 Next.js 15         — API routes + admin dashboard
-Python FastAPI     — Zai Sentinel local (backend/server.py)
+Python FastAPI     — ForgeOps Sentinel local (backend/server.py)
 ```
 
 ---
@@ -76,7 +76,7 @@ Python FastAPI     — Zai Sentinel local (backend/server.py)
 -- Fila de tarefas dos agentes
 agent_tasks (
   id           UUID PRIMARY KEY,
-  agent_name   TEXT  -- scanner|surgeon|validator|zai|sentinel|orchestrator
+  agent_name   TEXT  -- scanner|surgeon|validator|forgeops|sentinel|orchestrator
   status       TEXT  -- pending|running|completed|failed|escalated
   priority     TEXT  -- p0|p1|p2
   task_type    TEXT,
@@ -103,7 +103,7 @@ agent_knowledge (
 ## Workflow GitHub Actions
 
 ```yaml
-# .github/workflows/zaea.yml
+# .github/workflows/forgeops.yml
 # Rodado a cada 10 minutos
 on:
   schedule:
