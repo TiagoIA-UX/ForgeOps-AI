@@ -8,7 +8,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ForgeOps AI: {
+        forge: {
           bg: "#0a0a0f",
           surface: "#111118",
           border: "#1e1e2e",
