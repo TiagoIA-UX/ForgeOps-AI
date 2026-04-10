@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — lib/mercadopago.ts
+// ForgeOps AI — lib/mercadopago.ts
 // Cliente centralizado Mercado Pago (assinaturas SaaS)
 // Documentação: https://www.mercadopago.com.br/developers/pt
 // ======================================================
@@ -33,8 +33,8 @@ export function getMPClient(): MercadoPagoConfig {
 // Mapeamento de planos
 // ----------------------------
 export const PLAN_NAMES: Record<Exclude<OrgPlan, "free" | "enterprise">, string> = {
-  starter: "ZAEA Starter",
-  pro:     "ZAEA Pro",
+  starter: "ForgeOps AI Starter",
+  pro:     "ForgeOps AI Pro",
 };
 
 /** Preços em BRL (centavos → real) */

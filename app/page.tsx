@@ -3,30 +3,30 @@ import { Zap, GitBranch, ShieldCheck, BrainCircuit, ArrowRight } from "lucide-re
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ZAEA — Autonomous Engineering Agent",
+  title: "ForgeOps AI — Autonomous Engineering Agent",
   description:
     "Detecta, corrige e valida bugs no seu repositório GitHub automaticamente. Sem intervenção humana para falhas triviais.",
 };
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-zaea-bg text-white">
+    <main className="min-h-screen bg-forge-bg text-white">
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-zaea-border max-w-6xl mx-auto">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-forge-border max-w-6xl mx-auto">
         <div className="flex items-center gap-2">
-          <Zap size={18} className="text-zaea-accent" />
-          <span className="font-bold text-white">ZAEA</span>
+          <Zap size={18} className="text-forge-accent" />
+          <span className="font-bold text-white">ForgeOps AI</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/pricing" className="text-sm text-zaea-muted hover:text-white transition-colors">
+          <Link href="/pricing" className="text-sm text-forge-muted hover:text-white transition-colors">
             Preços
           </Link>
-          <Link href="/auth/login" className="text-sm text-zaea-muted hover:text-white transition-colors">
+          <Link href="/auth/login" className="text-sm text-forge-muted hover:text-white transition-colors">
             Entrar
           </Link>
           <Link
             href="/auth/signup"
-            className="text-sm px-3 py-1.5 bg-zaea-accent hover:bg-zaea-accent/90 rounded-lg font-medium transition-colors"
+            className="text-sm px-3 py-1.5 bg-forge-accent hover:bg-forge-accent/90 rounded-lg font-medium transition-colors"
           >
             Começar grátis
           </Link>
@@ -35,29 +35,29 @@ export default function HomePage() {
 
       {/* Hero */}
       <section className="text-center pt-20 pb-12 px-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zaea-accent/30 bg-zaea-accent/10 text-xs text-zaea-accent mb-6">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-forge-accent/30 bg-forge-accent/10 text-xs text-forge-accent mb-6">
           <Zap size={12} />
           Plano Free para sempre · Integração Mercado Pago
         </div>
         <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-5">
           Seu repositório GitHub
           <br />
-          <span className="text-zaea-accent">corrige bugs sozinho</span>
+          <span className="text-forge-accent">corrige bugs sozinho</span>
         </h1>
-        <p className="text-zaea-muted text-lg max-w-xl mx-auto mb-8">
-          ZAEA monitora, diagnostica e aplica patches no seu código Next.js + Supabase com zero
+        <p className="text-forge-muted text-lg max-w-xl mx-auto mb-8">
+          ForgeOps AI monitora, diagnostica e aplica patches no seu código Next.js + Supabase com zero
           intervenção humana para falhas triviais.
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
           <Link
             href="/auth/signup"
-            className="flex items-center gap-2 px-6 py-3 bg-zaea-accent hover:bg-zaea-accent/90 rounded-xl font-semibold text-sm transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-forge-accent hover:bg-forge-accent/90 rounded-xl font-semibold text-sm transition-colors"
           >
             Começar grátis — sem cartão <ArrowRight size={14} />
           </Link>
           <Link
             href="/pricing"
-            className="flex items-center gap-2 px-6 py-3 border border-zaea-border hover:border-zaea-accent/50 rounded-xl font-semibold text-sm text-zaea-muted hover:text-white transition-colors"
+            className="flex items-center gap-2 px-6 py-3 border border-forge-border hover:border-forge-accent/50 rounded-xl font-semibold text-sm text-forge-muted hover:text-white transition-colors"
           >
             Ver planos
           </Link>
@@ -70,35 +70,35 @@ export default function HomePage() {
           {[
             {
               step: "1",
-              icon: <GitBranch size={20} className="text-zaea-accent" />,
+              icon: <GitBranch size={20} className="text-forge-accent" />,
               title: "Conecte seu repo",
               desc: "Entre com Google ou GitHub, crie sua organização e conecte o repositório que deseja monitorar.",
             },
             {
               step: "2",
-              icon: <ShieldCheck size={20} className="text-zaea-success" />,
+              icon: <ShieldCheck size={20} className="text-forge-success" />,
               title: "Configure os agentes",
               desc: "Adicione sua chave Groq (grátis) e um Personal Access Token do GitHub. O Scanner começa automaticamente.",
             },
             {
               step: "3",
-              icon: <BrainCircuit size={20} className="text-zaea-warning" />,
+              icon: <BrainCircuit size={20} className="text-forge-warning" />,
               title: "Receba os patches",
               desc: "Erros SAFE são corrigidos direto no branch. Erros complexos viram Pull Requests. Alertas via Telegram.",
             },
           ].map(({ step, icon, title, desc }) => (
             <div
               key={step}
-              className="p-5 rounded-xl border border-zaea-border bg-zaea-surface space-y-3"
+              className="p-5 rounded-xl border border-forge-border bg-forge-surface space-y-3"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-zaea-muted bg-zaea-bg w-6 h-6 rounded-full flex items-center justify-center border border-zaea-border">
+                <span className="text-xs font-bold text-forge-muted bg-forge-bg w-6 h-6 rounded-full flex items-center justify-center border border-forge-border">
                   {step}
                 </span>
                 {icon}
               </div>
               <h3 className="font-semibold text-white">{title}</h3>
-              <p className="text-xs text-zaea-muted leading-relaxed">{desc}</p>
+              <p className="text-xs text-forge-muted leading-relaxed">{desc}</p>
             </div>
           ))}
         </div>
@@ -106,7 +106,7 @@ export default function HomePage() {
 
       {/* Agentes */}
       <section className="max-w-4xl mx-auto px-4 pb-20">
-        <h2 className="text-center text-base font-semibold text-zaea-muted uppercase tracking-wider mb-6">
+        <h2 className="text-center text-base font-semibold text-forge-muted uppercase tracking-wider mb-6">
           5 agentes trabalhando por você
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -119,23 +119,23 @@ export default function HomePage() {
           ].map((a) => (
             <div
               key={a.name}
-              className="p-4 rounded-xl border border-zaea-border bg-zaea-surface text-center space-y-2"
+              className="p-4 rounded-xl border border-forge-border bg-forge-surface text-center space-y-2"
             >
               <div className="text-2xl">{a.icon}</div>
               <div className="font-semibold text-white text-xs">{a.name}</div>
-              <div className="text-zaea-muted text-xs leading-tight">{a.desc}</div>
+              <div className="text-forge-muted text-xs leading-tight">{a.desc}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* Footer CTA */}
-      <section className="border-t border-zaea-border py-12 text-center px-4">
+      <section className="border-t border-forge-border py-12 text-center px-4">
         <h2 className="text-2xl font-bold text-white mb-3">Pronto para automatizar?</h2>
-        <p className="text-zaea-muted text-sm mb-6">Plano gratuito para sempre. Sem cartão de crédito.</p>
+        <p className="text-forge-muted text-sm mb-6">Plano gratuito para sempre. Sem cartão de crédito.</p>
         <Link
           href="/auth/signup"
-          className="inline-flex items-center gap-2 px-8 py-3 bg-zaea-accent hover:bg-zaea-accent/90 rounded-xl font-semibold transition-colors"
+          className="inline-flex items-center gap-2 px-8 py-3 bg-forge-accent hover:bg-forge-accent/90 rounded-xl font-semibold transition-colors"
         >
           Criar conta grátis <ArrowRight size={14} />
         </Link>

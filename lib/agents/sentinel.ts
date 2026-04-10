@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Sentinel Agent
+// ForgeOps AI — Sentinel Agent
 // Monitora alertas e envia notificações via Telegram
 // ======================================================
 
@@ -115,7 +115,7 @@ export async function notifyPatchApplied(params: {
   summary: string;
 }): Promise<void> {
   const icon = params.riskLevel === "SAFE" ? "✅" : "⚠️";
-  const message = `${icon} <b>ZAEA Surgeon — Patch Aplicado</b>
+  const message = `${icon} <b>ForgeOps AI Surgeon — Patch Aplicado</b>
 
 🔧 Correções: <b>${params.patchCount}</b>
 📊 Risco: <b>${params.riskLevel}</b>
@@ -135,7 +135,7 @@ function buildFailureAlert(tasks: AgentTask[]): string {
     .map((t) => `  • [${t.agent_name}] ${t.task_type}: ${t.error_message ?? "sem detalhe"}`)
     .join("\n");
 
-  return `🔴 <b>ZAEA — ${tasks.length} tarefa(s) falharam na última hora</b>\n\n${list}${tasks.length > 5 ? `\n  ... e mais ${tasks.length - 5}` : ""}`;
+  return `🔴 <b>ForgeOps AI — ${tasks.length} tarefa(s) falharam na última hora</b>\n\n${list}${tasks.length > 5 ? `\n  ... e mais ${tasks.length - 5}` : ""}`;
 }
 
 function buildEscalationAlert(tasks: AgentTask[]): string {
@@ -144,7 +144,7 @@ function buildEscalationAlert(tasks: AgentTask[]): string {
     .map((t) => `  • [${t.agent_name}] ${t.task_type}`)
     .join("\n");
 
-  return `🟡 <b>ZAEA — ${tasks.length} tarefa(s) escaladas para revisão humana</b>\n\n${list}\n\n<i>Ação manual necessária.</i>`;
+  return `🟡 <b>ForgeOps AI — ${tasks.length} tarefa(s) escaladas para revisão humana</b>\n\n${list}\n\n<i>Ação manual necessária.</i>`;
 }
 
 function buildStuckAlert(tasks: AgentTask[]): string {
@@ -157,5 +157,5 @@ function buildStuckAlert(tasks: AgentTask[]): string {
     })
     .join("\n");
 
-  return `🔵 <b>ZAEA — ${tasks.length} tarefa(s) travadas</b>\n\n${list}\n\n<i>Verificar o runner do GitHub Actions.</i>`;
+  return `🔵 <b>ForgeOps AI — ${tasks.length} tarefa(s) travadas</b>\n\n${list}\n\n<i>Verificar o runner do GitHub Actions.</i>`;
 }

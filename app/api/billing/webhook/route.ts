@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — POST /api/billing/webhook
+// ForgeOps AI — POST /api/billing/webhook
 // Recebe notificações do Mercado Pago (IPN / Webhooks v2)
 // Configurar no Painel MP → Webhooks → URL: /api/billing/webhook
 // ======================================================

@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Scanner Agent
+// ForgeOps AI — Scanner Agent
 // Detecta erros de TypeScript, lint e build via GitHub
 // ======================================================
 
@@ -59,7 +59,7 @@ export async function runScanner(
       [
         {
           role: "system",
-          content: `Você é o Scanner do ZAEA. Analise erros de TypeScript e lint em projetos Next.js.
+          content: `Você é o Scanner do ForgeOps AI. Analise erros de TypeScript e lint em projetos Next.js.
 Responda SEMPRE em JSON válido com o schema: {
   "typescript_errors": [{"file": string, "line": number, "column": number, "code": string, "message": string}],
   "lint_errors": [{"file": string, "line": number, "rule": string, "message": string, "severity": "error"|"warning"}],

@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — GET /api/admin/data
+// ForgeOps AI — GET /api/admin/data
 // Proxy server-side para dados do dashboard admin.
 // Requer sessão Supabase autenticada — secret nunca
 // chega ao bundle do cliente.

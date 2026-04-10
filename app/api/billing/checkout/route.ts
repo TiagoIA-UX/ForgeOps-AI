@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — POST /api/billing/checkout
+// ForgeOps AI — POST /api/billing/checkout
 // Cria sessão de checkout Mercado Pago (assinatura recorrente)
 // ======================================================
 

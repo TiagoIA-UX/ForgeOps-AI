@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — GET/POST /api/orgs/[slug]/settings
+// ForgeOps AI — GET/POST /api/orgs/[slug]/settings
 // Lê e salva as configurações dos agentes da org
 // ======================================================
 

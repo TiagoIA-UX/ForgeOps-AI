@@ -79,24 +79,24 @@ export default function AgentesPage() {
   const totalIssues = stats.reduce((a, s) => a + s.failed + s.escalated, 0);
 
   return (
-    <div className="min-h-screen bg-zaea-bg text-white p-6 space-y-8">
+    <div className="min-h-screen bg-forge-bg text-white p-6 space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-2xl">🎼</span>
-            <h1 className="text-2xl font-bold">ZAEA — Dashboard</h1>
+            <h1 className="text-2xl font-bold">ForgeOps AI — Dashboard</h1>
             {totalIssues > 0 && (
-              <span className="text-xs bg-zaea-danger/20 text-zaea-danger px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-forge-danger/20 text-forge-danger px-2 py-0.5 rounded-full">
                 {totalIssues} issues
               </span>
             )}
           </div>
-          <p className="text-sm text-zaea-muted">
-            Zairyx Autonomous Engineering Agent — Sistema de agentes autônomos
+          <p className="text-sm text-forge-muted">
+            ForgeOps AI — Autonomous Engineering Agent — Sistema de agentes autônomos
           </p>
           {lastRefresh && (
-            <p className="text-xs text-zaea-muted mt-1">
+            <p className="text-xs text-forge-muted mt-1">
               Atualizado em:{" "}
               {lastRefresh.toLocaleTimeString("pt-BR")}
             </p>
@@ -105,7 +105,7 @@ export default function AgentesPage() {
         <button
           onClick={fetchData}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-zaea-accent hover:bg-zaea-accent-hover disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-forge-accent hover:bg-forge-accent-hover disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           Atualizar
@@ -114,14 +114,14 @@ export default function AgentesPage() {
 
       {/* Error state */}
       {error && (
-        <div className="p-4 rounded-lg border border-zaea-danger/40 bg-zaea-danger/10 text-zaea-danger text-sm">
+        <div className="p-4 rounded-lg border border-forge-danger/40 bg-forge-danger/10 text-forge-danger text-sm">
           {error}
         </div>
       )}
 
       {/* Agent cards grid */}
       <section>
-        <h2 className="text-sm font-semibold text-zaea-muted uppercase tracking-wider mb-3">
+        <h2 className="text-sm font-semibold text-forge-muted uppercase tracking-wider mb-3">
           Saúde dos Agentes — últimas {hoursFilter}h
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -129,7 +129,7 @@ export default function AgentesPage() {
             ? Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-40 rounded-xl border border-zaea-border bg-zaea-surface animate-pulse"
+                  className="h-40 rounded-xl border border-forge-border bg-forge-surface animate-pulse"
                 />
               ))
             : stats.map((s) => <AgentCard key={s.agent} stats={s} />)}
@@ -141,7 +141,7 @@ export default function AgentesPage() {
         <select
           value={agentFilter}
           onChange={(e) => setAgentFilter(e.target.value as AgentName | "")}
-          className="bg-zaea-surface border border-zaea-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zaea-accent"
+          className="bg-forge-surface border border-forge-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-forge-accent"
         >
           {AGENT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -153,7 +153,7 @@ export default function AgentesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as TaskStatus | "")}
-          className="bg-zaea-surface border border-zaea-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zaea-accent"
+          className="bg-forge-surface border border-forge-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-forge-accent"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -165,7 +165,7 @@ export default function AgentesPage() {
         <select
           value={hoursFilter}
           onChange={(e) => setHoursFilter(Number(e.target.value))}
-          className="bg-zaea-surface border border-zaea-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zaea-accent"
+          className="bg-forge-surface border border-forge-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-forge-accent"
         >
           {[1, 6, 12, 24, 48, 72].map((h) => (
             <option key={h} value={h}>
@@ -174,20 +174,20 @@ export default function AgentesPage() {
           ))}
         </select>
 
-        <span className="text-xs text-zaea-muted ml-auto">
+        <span className="text-xs text-forge-muted ml-auto">
           {tasks.length} tarefa{tasks.length !== 1 ? "s" : ""}
         </span>
       </section>
 
       {/* Tabs */}
       <section>
-        <div className="flex gap-1 mb-4 border-b border-zaea-border">
+        <div className="flex gap-1 mb-4 border-b border-forge-border">
           <button
             onClick={() => setActiveTab("tasks")}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === "tasks"
-                ? "border-zaea-accent text-white"
-                : "border-transparent text-zaea-muted hover:text-white"
+                ? "border-forge-accent text-white"
+                : "border-transparent text-forge-muted hover:text-white"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -199,8 +199,8 @@ export default function AgentesPage() {
             onClick={() => setActiveTab("knowledge")}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === "knowledge"
-                ? "border-zaea-accent text-white"
-                : "border-transparent text-zaea-muted hover:text-white"
+                ? "border-forge-accent text-white"
+                : "border-transparent text-forge-muted hover:text-white"
             }`}
           >
             🧠 Conhecimento ({knowledge.length})

@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Orchestrator (Forge)
+// ForgeOps AI — Orchestrator (Forge)
 // Responsável por despachar tarefas, registrar outcomes
 // e consultar a base de conhecimento evolutiva
 // ======================================================

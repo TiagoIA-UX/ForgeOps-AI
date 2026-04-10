@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Autenticação interna via INTERNAL_API_SECRET
+// ForgeOps AI — Autenticação interna via INTERNAL_API_SECRET
 // ======================================================
 
 import { NextRequest } from "next/server";

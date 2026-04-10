@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — lib/tenant.ts
+// ForgeOps AI — lib/tenant.ts
 // Funções de acesso a orgs, membros e repos por usuário
 // ======================================================
 

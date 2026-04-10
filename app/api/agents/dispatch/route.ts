@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — API Route: POST/GET /api/agents/dispatch
+// ForgeOps AI — API Route: POST/GET /api/agents/dispatch
 // Despacha tarefas para os agentes e consulta resultados
 // ======================================================
 

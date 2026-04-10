@@ -1,7 +1,7 @@
 {
-  "name": "zaea",
+  "name": "forgeops-ai",
   "version": "1.0.0",
-  "description": "ZAEA — Zairyx Autonomous Engineering Agent",
+  "description": "ForgeOps AI — Autonomous Engineering Agent",
   "private": true,
   "scripts": {
     "dev": "next dev",

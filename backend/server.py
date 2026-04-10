@@ -1,5 +1,5 @@
 """
-ZAEA — Zai Sentinel (Python FastAPI Backend)
+ForgeOps AI — Zai Sentinel (Python FastAPI Backend)
 Agente local de monitoramento contínuo
 Monitora tarefas, envia alertas Telegram e dispara scans
 """
@@ -30,7 +30,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("zaea.sentinel")
+log = logging.getLogger("ForgeOps AI.sentinel")
 
 SUPABASE_URL = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
@@ -148,7 +148,7 @@ async def check_agent_health() -> None:
             f"  • [{t['agent_name']}] {t['task_type']}: {t.get('error_message', 'sem detalhe')}"
             for t in failed.data[:5]
         )
-        msg = f"🔴 <b>ZAEA Sentinel — {len(failed.data)} falha(s)</b>\n\n{lines}"
+        msg = f"🔴 <b>ForgeOps AI Sentinel — {len(failed.data)} falha(s)</b>\n\n{lines}"
         await send_telegram(msg)
         log.warning("Alertou %d falhas", len(failed.data))
 
@@ -156,7 +156,7 @@ async def check_agent_health() -> None:
         lines = "\n".join(
             f"  • [{t['agent_name']}] {t['task_type']}" for t in escalated.data[:5]
         )
-        msg = f"🟡 <b>ZAEA Sentinel — {len(escalated.data)} tarefa(s) escalada(s)</b>\n\n{lines}"
+        msg = f"🟡 <b>ForgeOps AI Sentinel — {len(escalated.data)} tarefa(s) escalada(s)</b>\n\n{lines}"
         await send_telegram(msg)
 
     if stuck:
@@ -164,7 +164,7 @@ async def check_agent_health() -> None:
             f"  • [{t['agent_name']}] {t['task_type']} — {t['elapsed_min']} min"
             for t in stuck
         )
-        msg = f"🔵 <b>ZAEA Sentinel — {len(stuck)} tarefa(s) travada(s)</b>\n\n{lines}"
+        msg = f"🔵 <b>ForgeOps AI Sentinel — {len(stuck)} tarefa(s) travada(s)</b>\n\n{lines}"
         await send_telegram(msg)
         log.warning("Detectou %d tarefas travadas", len(stuck))
 
@@ -173,7 +173,7 @@ async def sentinel_loop() -> None:
     """Loop principal do Sentinel."""
     log.info("Sentinel iniciado — intervalo: %ds", SENTINEL_INTERVAL)
     await send_telegram(
-        f"🟢 <b>ZAEA Sentinel Online</b>\n\nMonitoramento ativo. Intervalo: {SENTINEL_INTERVAL}s"
+        f"🟢 <b>ForgeOps AI Sentinel Online</b>\n\nMonitoramento ativo. Intervalo: {SENTINEL_INTERVAL}s"
     )
 
     while True:
@@ -200,8 +200,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ZAEA Sentinel",
-    description="Agente de monitoramento contínuo do sistema ZAEA",
+    title="ForgeOps AI Sentinel",
+    description="Agente de monitoramento contínuo do sistema ForgeOps AI",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if os.environ.get("NODE_ENV") != "production" else None,
@@ -247,7 +247,7 @@ async def dispatch_task(
     body: DispatchRequest,
     authorization: str = Header(...),
 ):
-    """Despacha uma tarefa para o sistema ZAEA via API."""
+    """Despacha uma tarefa para o sistema ForgeOps AI via API."""
     _authenticate(authorization)
 
     async with httpx.AsyncClient(timeout=15.0) as client:

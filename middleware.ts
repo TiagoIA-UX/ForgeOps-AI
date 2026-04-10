@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Middleware de segurança + autenticação Supabase
+// ForgeOps AI — Middleware de segurança + autenticação Supabase
 // ======================================================
 
 import { NextRequest, NextResponse } from "next/server";

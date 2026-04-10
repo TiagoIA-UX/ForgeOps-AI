@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Rate Limiting simples em memória
+// ForgeOps AI — Rate Limiting simples em memória
 // Para produção, substitua por Upstash Redis (free tier)
 // ======================================================
 

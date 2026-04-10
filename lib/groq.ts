@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Cliente Groq com suporte ao AI Gateway
+// ForgeOps AI — Cliente Groq com suporte ao AI Gateway
 // Usa AI_GATEWAY_API_KEY se disponível, fallback p/ GROQ_API_KEY
 // ======================================================
 
@@ -21,7 +21,7 @@ export function getGroqClient(): Groq {
   if (gatewayKey) {
     _client = new Groq({
       apiKey: gatewayKey,
-      baseURL: "https://gateway.ai.cloudflare.com/v1/zairyx/zaea/groq", // ajuste ao seu gateway
+      baseURL: "https://gateway.ai.cloudflare.com/v1/ForgeOps/ForgeOps AI/groq", // ajuste ao seu gateway
     });
   } else {
     _client = new Groq({ apiKey: groqKey! });

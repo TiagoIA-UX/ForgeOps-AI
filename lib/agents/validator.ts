@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Validator Agent
+// ForgeOps AI — Validator Agent
 // Valida patches antes do merge em produção
 // ======================================================
 

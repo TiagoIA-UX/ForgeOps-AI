@@ -46,9 +46,9 @@ function SecretInput({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-zaea-muted">{label}</label>
+        <label className="text-xs font-medium text-forge-muted">{label}</label>
         <a href={helpUrl} target="_blank" rel="noopener noreferrer"
-          className="text-xs text-zaea-accent hover:underline">{helpLabel} →</a>
+          className="text-xs text-forge-accent hover:underline">{helpLabel} →</a>
       </div>
       <div className="relative">
         <input
@@ -56,15 +56,15 @@ function SecretInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={saved ? "──── já salvo, cole novo para substituir ────" : placeholder}
-          className="w-full bg-zaea-bg border border-zaea-border rounded-lg px-3 py-2.5 pr-10 text-sm text-white placeholder:text-zaea-muted/50 focus:outline-none focus:border-zaea-accent transition-colors font-mono"
+          className="w-full bg-forge-bg border border-forge-border rounded-lg px-3 py-2.5 pr-10 text-sm text-white placeholder:text-forge-muted/50 focus:outline-none focus:border-forge-accent transition-colors font-mono"
         />
         <button type="button" onClick={() => setShow(!show)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-zaea-muted hover:text-white">
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-forge-muted hover:text-white">
           {show ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>
       {saved && (
-        <p className="text-xs text-zaea-success flex items-center gap-1">
+        <p className="text-xs text-forge-success flex items-center gap-1">
           <CheckCircle size={11} /> Credencial salva
         </p>
       )}
@@ -141,8 +141,8 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zaea-bg flex items-center justify-center">
-        <Loader2 size={28} className="animate-spin text-zaea-accent" />
+      <div className="min-h-screen bg-forge-bg flex items-center justify-center">
+        <Loader2 size={28} className="animate-spin text-forge-accent" />
       </div>
     );
   }
@@ -155,36 +155,36 @@ export default function SettingsPage() {
   const setupProgress = setupSteps.filter((s) => s.done).length;
 
   return (
-    <div className="min-h-screen bg-zaea-bg">
+    <div className="min-h-screen bg-forge-bg">
       <div className="max-w-2xl mx-auto px-4 py-10 space-y-8">
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-zaea-muted">
+        <div className="flex items-center gap-2 text-sm text-forge-muted">
           <Link href={`/dashboard/${slug}`} className="hover:text-white transition-colors">{slug}</Link>
           <ChevronRight size={14} />
           <span className="text-white">Configurações dos agentes</span>
         </div>
 
         {/* Setup progress */}
-        <div className={`p-4 rounded-xl border ${config.setup_completed ? "border-zaea-success/30 bg-zaea-success/5" : "border-zaea-warning/30 bg-zaea-warning/5"}`}>
+        <div className={`p-4 rounded-xl border ${config.setup_completed ? "border-forge-success/30 bg-forge-success/5" : "border-forge-warning/30 bg-forge-warning/5"}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <ShieldCheck size={16} className={config.setup_completed ? "text-zaea-success" : "text-zaea-warning"} />
+              <ShieldCheck size={16} className={config.setup_completed ? "text-forge-success" : "text-forge-warning"} />
               <span className="text-sm font-semibold text-white">
                 {config.setup_completed ? "Agentes prontos para funcionar!" : `Configure os agentes (${setupProgress}/3)`}
               </span>
             </div>
-            <span className="text-xs text-zaea-muted">{Math.round((setupProgress / 3) * 100)}%</span>
+            <span className="text-xs text-forge-muted">{Math.round((setupProgress / 3) * 100)}%</span>
           </div>
           <div className="flex gap-3">
             {setupSteps.map(({ label, done, icon }) => (
-              <div key={label} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg ${done ? "bg-zaea-success/10 text-zaea-success" : "bg-zaea-muted/10 text-zaea-muted"}`}>
+              <div key={label} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg ${done ? "bg-forge-success/10 text-forge-success" : "bg-forge-muted/10 text-forge-muted"}`}>
                 {icon} {label} {done ? "✓" : "—"}
               </div>
             ))}
           </div>
           {!config.setup_completed && (
-            <p className="text-xs text-zaea-muted mt-2">
+            <p className="text-xs text-forge-muted mt-2">
               Preencha os campos abaixo para ativar Scanner, Surgeon, Validator e Sentinel.
             </p>
           )}
@@ -192,12 +192,12 @@ export default function SettingsPage() {
 
         {/* Error / success */}
         {error && (
-          <div className="flex items-center gap-2 bg-zaea-danger/10 border border-zaea-danger/30 rounded-lg px-4 py-3 text-sm text-zaea-danger">
+          <div className="flex items-center gap-2 bg-forge-danger/10 border border-forge-danger/30 rounded-lg px-4 py-3 text-sm text-forge-danger">
             <AlertCircle size={14} /> {error}
           </div>
         )}
         {saved && (
-          <div className="flex items-center gap-2 bg-zaea-success/10 border border-zaea-success/30 rounded-lg px-4 py-3 text-sm text-zaea-success">
+          <div className="flex items-center gap-2 bg-forge-success/10 border border-forge-success/30 rounded-lg px-4 py-3 text-sm text-forge-success">
             <CheckCircle size={14} /> Configurações salvas com sucesso!
           </div>
         )}
@@ -206,13 +206,13 @@ export default function SettingsPage() {
         <form onSubmit={handleSave} className="space-y-6">
 
           {/* ── GitHub ─────────────────────────────────── */}
-          <section className="bg-zaea-surface border border-zaea-border rounded-xl p-5 space-y-4">
+          <section className="bg-forge-surface border border-forge-border rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
               <Github size={16} className="text-white" />
               <h2 className="font-semibold text-white text-sm">GitHub</h2>
-              <span className="text-xs text-zaea-danger ml-1">obrigatório</span>
+              <span className="text-xs text-forge-danger ml-1">obrigatório</span>
             </div>
-            <p className="text-xs text-zaea-muted -mt-2">
+            <p className="text-xs text-forge-muted -mt-2">
               Usado pelo Scanner para ler o código e pelo Surgeon para abrir Pull Requests.
             </p>
             <SecretInput
@@ -226,34 +226,34 @@ export default function SettingsPage() {
             />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zaea-muted">Dono do repo (owner)</label>
+                <label className="text-xs font-medium text-forge-muted">Dono do repo (owner)</label>
                 <input
                   value={config.github_repo_owner}
                   onChange={(e) => set("github_repo_owner", e.target.value)}
                   placeholder="seu-usuario"
-                  className="w-full bg-zaea-bg border border-zaea-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zaea-muted focus:outline-none focus:border-zaea-accent transition-colors font-mono"
+                  className="w-full bg-forge-bg border border-forge-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-forge-muted focus:outline-none focus:border-forge-accent transition-colors font-mono"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zaea-muted">Nome do repositório</label>
+                <label className="text-xs font-medium text-forge-muted">Nome do repositório</label>
                 <input
                   value={config.github_repo_name}
                   onChange={(e) => set("github_repo_name", e.target.value)}
                   placeholder="meu-projeto"
-                  className="w-full bg-zaea-bg border border-zaea-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zaea-muted focus:outline-none focus:border-zaea-accent transition-colors font-mono"
+                  className="w-full bg-forge-bg border border-forge-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-forge-muted focus:outline-none focus:border-forge-accent transition-colors font-mono"
                 />
               </div>
             </div>
           </section>
 
           {/* ── Groq AI ────────────────────────────────── */}
-          <section className="bg-zaea-surface border border-zaea-border rounded-xl p-5 space-y-4">
+          <section className="bg-forge-surface border border-forge-border rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
-              <Zap size={16} className="text-zaea-accent" />
+              <Zap size={16} className="text-forge-accent" />
               <h2 className="font-semibold text-white text-sm">Groq AI</h2>
-              <span className="text-xs text-zaea-danger ml-1">obrigatório</span>
+              <span className="text-xs text-forge-danger ml-1">obrigatório</span>
             </div>
-            <p className="text-xs text-zaea-muted -mt-2">
+            <p className="text-xs text-forge-muted -mt-2">
               Alimenta o Scanner e o Surgeon com o modelo llama-3.3-70b. Plano gratuito do Groq é suficiente.
             </p>
             <SecretInput
@@ -268,13 +268,13 @@ export default function SettingsPage() {
           </section>
 
           {/* ── Telegram ───────────────────────────────── */}
-          <section className="bg-zaea-surface border border-zaea-border rounded-xl p-5 space-y-4">
+          <section className="bg-forge-surface border border-forge-border rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
               <Bot size={16} className="text-blue-400" />
               <h2 className="font-semibold text-white text-sm">Telegram (Sentinel)</h2>
-              <span className="text-xs text-zaea-muted ml-1">opcional</span>
+              <span className="text-xs text-forge-muted ml-1">opcional</span>
             </div>
-            <p className="text-xs text-zaea-muted -mt-2">
+            <p className="text-xs text-forge-muted -mt-2">
               O Sentinel envia alertas quando um erro grave é detectado ou um patch é aplicado.
             </p>
             <SecretInput
@@ -287,56 +287,56 @@ export default function SettingsPage() {
               saved={config.has_telegram_token}
             />
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zaea-muted">Chat ID</label>
+              <label className="text-xs font-medium text-forge-muted">Chat ID</label>
               <input
                 value={config.telegram_chat_id}
                 onChange={(e) => set("telegram_chat_id", e.target.value)}
                 placeholder="-100123456789 (grupo) ou 123456789 (pessoal)"
-                className="w-full bg-zaea-bg border border-zaea-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zaea-muted focus:outline-none focus:border-zaea-accent transition-colors font-mono"
+                className="w-full bg-forge-bg border border-forge-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-forge-muted focus:outline-none focus:border-forge-accent transition-colors font-mono"
               />
-              <p className="text-xs text-zaea-muted">
+              <p className="text-xs text-forge-muted">
                 Obter via{" "}
-                <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-zaea-accent hover:underline">
+                <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-forge-accent hover:underline">
                   @userinfobot
                 </a>{" "}
                 no Telegram.
               </p>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zaea-muted">E-mail de notificações (opcional)</label>
+              <label className="text-xs font-medium text-forge-muted">E-mail de notificações (opcional)</label>
               <input
                 type="email"
                 value={config.notify_email}
                 onChange={(e) => set("notify_email", e.target.value)}
                 placeholder="dev@empresa.com"
-                className="w-full bg-zaea-bg border border-zaea-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zaea-muted focus:outline-none focus:border-zaea-accent transition-colors"
+                className="w-full bg-forge-bg border border-forge-border rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-forge-muted focus:outline-none focus:border-forge-accent transition-colors"
               />
             </div>
           </section>
 
           {/* ── Comportamento dos agentes ───────────────── */}
-          <section className="bg-zaea-surface border border-zaea-border rounded-xl p-5 space-y-4">
+          <section className="bg-forge-surface border border-forge-border rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
-              <Settings size={16} className="text-zaea-muted" />
+              <Settings size={16} className="text-forge-muted" />
               <h2 className="font-semibold text-white text-sm">Comportamento dos Agentes</h2>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-b border-zaea-border">
+            <div className="flex items-center justify-between py-2 border-b border-forge-border">
               <div>
                 <p className="text-sm text-white">Auto-fix ativado</p>
-                <p className="text-xs text-zaea-muted">O Surgeon aplica patches automaticamente</p>
+                <p className="text-xs text-forge-muted">O Surgeon aplica patches automaticamente</p>
               </div>
               <button
                 type="button"
                 onClick={() => set("auto_fix_enabled", !config.auto_fix_enabled)}
-                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.auto_fix_enabled ? "bg-zaea-accent" : "bg-zaea-border"}`}
+                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.auto_fix_enabled ? "bg-forge-accent" : "bg-forge-border"}`}
               >
                 <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${config.auto_fix_enabled ? "translate-x-5" : ""}`} />
               </button>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zaea-muted">
+              <label className="text-xs font-medium text-forge-muted">
                 Nível de risco permitido para auto-fix
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -347,39 +347,39 @@ export default function SettingsPage() {
                     onClick={() => set("risk_level_allowed", level)}
                     className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
                       config.risk_level_allowed === level
-                        ? level === "SAFE"   ? "bg-zaea-success/20 border-zaea-success text-zaea-success"
-                          : level === "MODERATE" ? "bg-zaea-warning/20 border-zaea-warning text-zaea-warning"
-                          : "bg-zaea-danger/20 border-zaea-danger text-zaea-danger"
-                        : "border-zaea-border text-zaea-muted hover:border-zaea-accent/50"
+                        ? level === "SAFE"   ? "bg-forge-success/20 border-forge-success text-forge-success"
+                          : level === "MODERATE" ? "bg-forge-warning/20 border-forge-warning text-forge-warning"
+                          : "bg-forge-danger/20 border-forge-danger text-forge-danger"
+                        : "border-forge-border text-forge-muted hover:border-forge-accent/50"
                     }`}
                   >
                     {level === "SAFE" ? "🟢 Seguro" : level === "MODERATE" ? "🟡 Moderado" : "🔴 Arriscado"}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-zaea-muted">
+              <p className="text-xs text-forge-muted">
                 <strong className="text-white">Seguro</strong> = apenas fixes óbvios de tipagem/lint • <strong className="text-white">Moderado</strong> = inclui lógica simples • <strong className="text-white">Arriscado</strong> = qualquer erro (não recomendado)
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zaea-muted">
+              <label className="text-xs font-medium text-forge-muted">
                 Máximo de fixes por execução ({config.max_fixes_per_run})
               </label>
               <input type="range" min={1} max={20} value={config.max_fixes_per_run}
                 onChange={(e) => set("max_fixes_per_run", Number(e.target.value))}
-                className="w-full accent-zaea-accent" />
-              <div className="flex justify-between text-xs text-zaea-muted">
+                className="w-full accent-forge-accent" />
+              <div className="flex justify-between text-xs text-forge-muted">
                 <span>1 (conservador)</span><span>20 (agressivo)</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-zaea-border">
+            <div className="flex items-center justify-between py-2 border-t border-forge-border">
               <div>
                 <p className="text-sm text-white">Notificar ao aplicar fix</p>
               </div>
               <button type="button" onClick={() => set("notify_on_fix", !config.notify_on_fix)}
-                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.notify_on_fix ? "bg-zaea-accent" : "bg-zaea-border"}`}>
+                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.notify_on_fix ? "bg-forge-accent" : "bg-forge-border"}`}>
                 <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${config.notify_on_fix ? "translate-x-5" : ""}`} />
               </button>
             </div>
@@ -389,7 +389,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-white">Notificar ao detectar erro</p>
               </div>
               <button type="button" onClick={() => set("notify_on_error", !config.notify_on_error)}
-                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.notify_on_error ? "bg-zaea-accent" : "bg-zaea-border"}`}>
+                className={`relative inline-flex w-10 h-5 rounded-full transition-colors ${config.notify_on_error ? "bg-forge-accent" : "bg-forge-border"}`}>
                 <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${config.notify_on_error ? "translate-x-5" : ""}`} />
               </button>
             </div>
@@ -399,7 +399,7 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zaea-accent hover:bg-zaea-accent/90 disabled:opacity-50 rounded-xl text-sm font-semibold text-white transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-forge-accent hover:bg-forge-accent/90 disabled:opacity-50 rounded-xl text-sm font-semibold text-white transition-colors"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? "Salvando…" : "Salvar configurações"}

@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Tipos Multi-tenant SaaS
+// ForgeOps AI — Tipos Multi-tenant SaaS
 // ======================================================
 
 export type OrgPlan = "free" | "starter" | "pro" | "enterprise";

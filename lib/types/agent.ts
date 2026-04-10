@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Tipos centrais do sistema de agentes
+// ForgeOps AI — Tipos centrais do sistema de agentes
 // ======================================================
 
 export type AgentName =

@@ -22,8 +22,8 @@ export function AgentCard({ stats }: AgentCardProps) {
 
   return (
     <div
-      className={`rounded-xl border p-5 bg-zaea-surface transition-all duration-200 hover:border-zaea-accent/50 ${
-        hasIssues ? "border-zaea-warning/40" : "border-zaea-border"
+      className={`rounded-xl border p-5 bg-forge-surface transition-all duration-200 hover:border-forge-accent/50 ${
+        hasIssues ? "border-forge-warning/40" : "border-forge-border"
       }`}
     >
       {/* Header */}
@@ -32,24 +32,24 @@ export function AgentCard({ stats }: AgentCardProps) {
           <span className="text-2xl">{meta.emoji}</span>
           <div>
             <h3 className="font-semibold text-white text-sm">{meta.label}</h3>
-            <p className="text-xs text-zaea-muted">{meta.description}</p>
+            <p className="text-xs text-forge-muted">{meta.description}</p>
           </div>
         </div>
 
         {/* Status indicator */}
         <div className="flex items-center gap-1.5">
           {stats.running > 0 ? (
-            <span className="flex items-center gap-1 text-xs text-zaea-info">
+            <span className="flex items-center gap-1 text-xs text-forge-info">
               <Zap size={12} className="animate-pulse" />
               Ativo
             </span>
           ) : isHealthy ? (
-            <span className="flex items-center gap-1 text-xs text-zaea-success">
+            <span className="flex items-center gap-1 text-xs text-forge-success">
               <CheckCircle size={12} />
               Saudável
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-xs text-zaea-warning">
+            <span className="flex items-center gap-1 text-xs text-forge-warning">
               <AlertTriangle size={12} />
               Atenção
             </span>
@@ -61,15 +61,15 @@ export function AgentCard({ stats }: AgentCardProps) {
       {stats.total > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-xs mb-1">
-            <span className="text-zaea-muted">Taxa de sucesso</span>
-            <span className={stats.successRate >= 80 ? "text-zaea-success" : "text-zaea-warning"}>
+            <span className="text-forge-muted">Taxa de sucesso</span>
+            <span className={stats.successRate >= 80 ? "text-forge-success" : "text-forge-warning"}>
               {stats.successRate}%
             </span>
           </div>
-          <div className="h-1.5 bg-zaea-bg rounded-full overflow-hidden">
+          <div className="h-1.5 bg-forge-bg rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                stats.successRate >= 80 ? "bg-zaea-success" : "bg-zaea-warning"
+                stats.successRate >= 80 ? "bg-forge-success" : "bg-forge-warning"
               }`}
               style={{ width: `${stats.successRate}%` }}
             />
@@ -83,26 +83,26 @@ export function AgentCard({ stats }: AgentCardProps) {
         <Metric
           label="OK"
           value={stats.completed}
-          color="text-zaea-success"
+          color="text-forge-success"
           icon={<CheckCircle size={10} />}
         />
         <Metric
           label="Falha"
           value={stats.failed}
-          color="text-zaea-danger"
+          color="text-forge-danger"
           icon={<XCircle size={10} />}
         />
         <Metric
           label="Escal."
           value={stats.escalated}
-          color="text-zaea-warning"
+          color="text-forge-warning"
           icon={<AlertTriangle size={10} />}
         />
       </div>
 
       {/* Last activity */}
       {stats.lastActivity && (
-        <div className="mt-3 flex items-center gap-1 text-xs text-zaea-muted">
+        <div className="mt-3 flex items-center gap-1 text-xs text-forge-muted">
           <Clock size={10} />
           <span>
             Última atividade:{" "}
@@ -136,7 +136,7 @@ function Metric({
         {icon}
         {value}
       </div>
-      <div className="text-xs text-zaea-muted">{label}</div>
+      <div className="text-xs text-forge-muted">{label}</div>
     </div>
   );
 }

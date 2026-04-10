@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — Surgeon Agent
+// ForgeOps AI — Surgeon Agent
 // Gera e aplica patches automáticos via Groq
 // PROTEÇÃO ABSOLUTA: nunca toca em arquivos protegidos
 // ======================================================
@@ -75,7 +75,7 @@ export async function runSurgeon(
     const branchName =
       risk_level === "SAFE"
         ? null
-        : `zaea/fix-${Date.now().toString(36)}`;
+        : `ForgeOps AI/fix-${Date.now().toString(36)}`;
 
     const output: SurgeonOutput = {
       patches_applied: patches.length,
@@ -120,7 +120,7 @@ async function generatePatches(
       ? `\nSoluções conhecidas:\n${knowledge.map((k) => `- ${k.pattern}: ${k.solution}`).join("\n")}`
       : "";
 
-  const prompt = `Você é o Surgeon do ZAEA. Gere patches mínimos e seguros para corrigir os erros abaixo.
+  const prompt = `Você é o Surgeon do ForgeOps AI. Gere patches mínimos e seguros para corrigir os erros abaixo.
 Nível de risco: ${riskLevel}
 ${knowledgeCtx}
 

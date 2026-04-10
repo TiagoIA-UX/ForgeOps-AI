@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — API: POST /api/orgs — cria organização
+// ForgeOps AI — API: POST /api/orgs — cria organização
 // ======================================================
 
 import { NextRequest, NextResponse } from "next/server";

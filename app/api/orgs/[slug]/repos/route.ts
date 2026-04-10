@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — API: GET /api/orgs/[slug]/repos
+// ForgeOps AI — API: GET /api/orgs/[slug]/repos
 //             POST /api/orgs/[slug]/repos — conecta repo
 // ======================================================
 

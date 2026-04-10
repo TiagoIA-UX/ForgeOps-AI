@@ -1,5 +1,5 @@
 // ======================================================
-// ZAEA — lib/agent-config.ts
+// ForgeOps AI — lib/agent-config.ts
 // Lê credenciais dos agentes por org (do banco) com
 // fallback para variáveis de ambiente globais
 // ======================================================

@@ -1,10 +1,10 @@
 # ======================================================
-# ZAEA — Pipeline Autônomo de Engenharia
+# ForgeOps AI — Pipeline Autônomo de Engenharia
 # Scanner → Surgeon → Validator → Notifier
 # Roda a cada 10 minutos | free tier: 2000 min/mês
 # ======================================================
 
-name: ZAEA Autonomous Pipeline
+name: ForgeOps AI Autonomous Pipeline
 
 on:
   schedule:
@@ -29,7 +29,7 @@ on:
 
 # Evita execuções simultâneas do mesmo workflow
 concurrency:
-  group: zaea-pipeline
+  group: forge-pipeline
   cancel-in-progress: false
 
 env:
@@ -183,7 +183,7 @@ jobs:
             -d '{
               "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
               "parse_mode": "HTML",
-              "text": "🔴 <b>ZAEA — Intervenção Humana Necessária</b>\n\nRisco: <b>RISKY</b>\nErros: <b>${{ needs.scanner.outputs.errors_found }}</b>\nCommit: <code>${{ github.sha }}</code>\n\nO Surgeon foi bloqueado. Revise manualmente."
+              "text": "🔴 <b>ForgeOps AI — Intervenção Humana Necessária</b>\n\nRisco: <b>RISKY</b>\nErros: <b>${{ needs.scanner.outputs.errors_found }}</b>\nCommit: <code>${{ github.sha }}</code>\n\nO Surgeon foi bloqueado. Revise manualmente."
             }'
 
   # ======================================================
@@ -292,5 +292,5 @@ jobs:
             -d "{
               \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
               \"parse_mode\": \"HTML\",
-              \"text\": \"$ICON <b>ZAEA Pipeline</b>\\n\\nStatus: <b>$MSG</b>\\nErros: <b>$ERRORS</b>\\nRisco: <b>$RISK</b>\\n\\n<a href=\\\"$RUN_URL\\\">Ver execução</a>\"
+              \"text\": \"$ICON <b>ForgeOps AI Pipeline</b>\\n\\nStatus: <b>$MSG</b>\\nErros: <b>$ERRORS</b>\\nRisco: <b>$RISK</b>\\n\\n<a href=\\\"$RUN_URL\\\">Ver execução</a>\"
             }"

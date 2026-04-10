@@ -12,7 +12,7 @@ type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  return { title: `${slug} — ZAEA Dashboard` };
+  return { title: `${slug} — ForgeOps AI Dashboard` };
 }
 
 export const dynamic = "force-dynamic";
@@ -40,19 +40,19 @@ export default async function OrgDashboardPage({ params }: Params) {
   const isOwnerOrAdmin = role === "owner" || role === "admin";
 
   return (
-    <div className="min-h-screen bg-zaea-bg">
+    <div className="min-h-screen bg-forge-bg">
       {/* Sidebar */}
       <div className="flex">
-        <aside className="w-60 min-h-screen bg-zaea-surface border-r border-zaea-border p-4 flex flex-col">
+        <aside className="w-60 min-h-screen bg-forge-surface border-r border-forge-border p-4 flex flex-col">
           {/* Logo */}
           <div className="flex items-center gap-2 mb-6 px-2">
-            <Zap size={18} className="text-zaea-accent" />
-            <span className="font-bold text-white text-sm">ZAEA</span>
+            <Zap size={18} className="text-forge-accent" />
+            <span className="font-bold text-white text-sm">ForgeOps AI</span>
           </div>
 
           {/* Org switcher */}
           <div className="mb-4">
-            <p className="text-xs text-zaea-muted uppercase tracking-wider px-2 mb-2">Organização</p>
+            <p className="text-xs text-forge-muted uppercase tracking-wider px-2 mb-2">Organização</p>
             <div className="space-y-1">
               {allOrgs.map(({ org: o }) => (
                 <Link
@@ -60,11 +60,11 @@ export default async function OrgDashboardPage({ params }: Params) {
                   href={`/dashboard/${o.slug}`}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                     o.id === org.id
-                      ? "bg-zaea-accent/20 text-white"
-                      : "text-zaea-muted hover:text-white hover:bg-zaea-bg"
+                      ? "bg-forge-accent/20 text-white"
+                      : "text-forge-muted hover:text-white hover:bg-forge-bg"
                   }`}
                 >
-                  <span className="w-5 h-5 rounded bg-zaea-accent/30 text-zaea-accent text-xs flex items-center justify-center font-bold">
+                  <span className="w-5 h-5 rounded bg-forge-accent/30 text-forge-accent text-xs flex items-center justify-center font-bold">
                     {o.name[0].toUpperCase()}
                   </span>
                   <span className="truncate">{o.name}</span>
@@ -72,7 +72,7 @@ export default async function OrgDashboardPage({ params }: Params) {
               ))}
               <Link
                 href="/onboarding"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zaea-muted hover:text-white hover:bg-zaea-bg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-forge-muted hover:text-white hover:bg-forge-bg transition-colors"
               >
                 <Plus size={14} /> Nova org
               </Link>
@@ -81,29 +81,29 @@ export default async function OrgDashboardPage({ params }: Params) {
 
           {/* Nav */}
           <nav className="flex-1 space-y-1">
-            <p className="text-xs text-zaea-muted uppercase tracking-wider px-2 mb-2 mt-4">Menu</p>
-            <Link href={`/dashboard/${slug}`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white bg-zaea-bg">
+            <p className="text-xs text-forge-muted uppercase tracking-wider px-2 mb-2 mt-4">Menu</p>
+            <Link href={`/dashboard/${slug}`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white bg-forge-bg">
               📊 Dashboard
             </Link>
-            <Link href={`/dashboard/${slug}/repos`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zaea-muted hover:text-white hover:bg-zaea-bg transition-colors">
+            <Link href={`/dashboard/${slug}/repos`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-forge-muted hover:text-white hover:bg-forge-bg transition-colors">
               <GitBranch size={14} /> Repositórios
             </Link>
             {isOwnerOrAdmin && (
-              <Link href={`/dashboard/${slug}/settings`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zaea-muted hover:text-white hover:bg-zaea-bg transition-colors">
+              <Link href={`/dashboard/${slug}/settings`} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-forge-muted hover:text-white hover:bg-forge-bg transition-colors">
                 <Settings size={14} /> Configurações
               </Link>
             )}
           </nav>
 
           {/* User + logout */}
-          <div className="mt-auto border-t border-zaea-border pt-4 space-y-2">
-            <p className="text-xs text-zaea-muted truncate px-2">
+          <div className="mt-auto border-t border-forge-border pt-4 space-y-2">
+            <p className="text-xs text-forge-muted truncate px-2">
               {user.user_metadata?.full_name ?? user.email}
             </p>
             <form action="/auth/signout" method="POST">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zaea-muted hover:text-white hover:bg-zaea-bg transition-colors w-full"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-forge-muted hover:text-white hover:bg-forge-bg transition-colors w-full"
               >
                 <LogOut size={14} /> Sair
               </button>
@@ -117,7 +117,7 @@ export default async function OrgDashboardPage({ params }: Params) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">{org.name}</h1>
-              <p className="text-sm text-zaea-muted">
+              <p className="text-sm text-forge-muted">
                 Plano <span className="text-white capitalize">{org.plan}</span> ·{" "}
                 {repos.length}/{org.max_repos} repo{org.max_repos !== 1 ? "s" : ""}
               </p>
@@ -125,7 +125,7 @@ export default async function OrgDashboardPage({ params }: Params) {
             {isOwnerOrAdmin && repos.length < org.max_repos && (
               <Link
                 href={`/dashboard/${slug}/repos/connect`}
-                className="flex items-center gap-2 px-4 py-2 bg-zaea-accent hover:bg-zaea-accent-hover rounded-lg text-sm font-medium text-white transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-forge-accent hover:bg-forge-accent-hover rounded-lg text-sm font-medium text-white transition-colors"
               >
                 <Plus size={14} /> Conectar repo
               </Link>
@@ -134,13 +134,13 @@ export default async function OrgDashboardPage({ params }: Params) {
 
           {/* Repos cards */}
           {repos.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-zaea-border rounded-xl space-y-4">
-              <GitBranch size={32} className="text-zaea-muted mx-auto" />
-              <p className="text-zaea-muted text-sm">Nenhum repositório conectado ainda.</p>
+            <div className="text-center py-12 border border-dashed border-forge-border rounded-xl space-y-4">
+              <GitBranch size={32} className="text-forge-muted mx-auto" />
+              <p className="text-forge-muted text-sm">Nenhum repositório conectado ainda.</p>
               {isOwnerOrAdmin && (
                 <Link
                   href={`/dashboard/${slug}/repos/connect`}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-zaea-accent hover:bg-zaea-accent-hover rounded-lg text-sm font-medium text-white transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-forge-accent hover:bg-forge-accent-hover rounded-lg text-sm font-medium text-white transition-colors"
                 >
                   <Plus size={14} /> Conectar repositório
                 </Link>
@@ -149,19 +149,19 @@ export default async function OrgDashboardPage({ params }: Params) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {repos.map((repo) => (
-                <div key={repo.id} className="p-4 bg-zaea-surface border border-zaea-border rounded-xl space-y-2">
+                <div key={repo.id} className="p-4 bg-forge-surface border border-forge-border rounded-xl space-y-2">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold text-white text-sm font-mono">
                         {repo.github_owner}/{repo.github_repo}
                       </p>
-                      <p className="text-xs text-zaea-muted">branch: {repo.github_branch}</p>
+                      <p className="text-xs text-forge-muted">branch: {repo.github_branch}</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${repo.is_active ? "bg-zaea-success/10 text-zaea-success" : "bg-zaea-muted/10 text-zaea-muted"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${repo.is_active ? "bg-forge-success/10 text-forge-success" : "bg-forge-muted/10 text-forge-muted"}`}>
                       {repo.is_active ? "Ativo" : "Pausado"}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-zaea-muted">
+                  <div className="flex items-center gap-3 text-xs text-forge-muted">
                     <span>Scan a cada {repo.scan_interval} min</span>
                     {repo.last_scan_at && (
                       <span>
@@ -174,7 +174,7 @@ export default async function OrgDashboardPage({ params }: Params) {
                     )}
                   </div>
                   {repo.last_error && (
-                    <p className="text-xs text-zaea-danger truncate">{repo.last_error}</p>
+                    <p className="text-xs text-forge-danger truncate">{repo.last_error}</p>
                   )}
                 </div>
               ))}
@@ -183,7 +183,7 @@ export default async function OrgDashboardPage({ params }: Params) {
 
           {/* Agent health */}
           <section>
-            <h2 className="text-sm font-semibold text-zaea-muted uppercase tracking-wider mb-3">
+            <h2 className="text-sm font-semibold text-forge-muted uppercase tracking-wider mb-3">
               Saúde dos Agentes — últimas 24h
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -195,7 +195,7 @@ export default async function OrgDashboardPage({ params }: Params) {
 
           {/* Recent tasks */}
           <section>
-            <h2 className="text-sm font-semibold text-zaea-muted uppercase tracking-wider mb-3">
+            <h2 className="text-sm font-semibold text-forge-muted uppercase tracking-wider mb-3">
               Tarefas recentes
             </h2>
             <TaskList tasks={recentTasks} />
