@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/*": ["lib/*"],
+      "@/lib/shared/supabase/admin": ["lib/supabase-admin-stub.ts"],
+      "@/lib/shared/domain-logger": ["lib/domain-logger-stub.ts"],
+      "@/lib/domains/auth/admin-auth": ["lib/admin-auth-stub.ts"]
+    }
+  },
+  "include": ["lib/**/*", "app/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

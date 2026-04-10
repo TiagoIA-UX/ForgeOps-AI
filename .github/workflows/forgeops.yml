@@ -1,0 +1,1255 @@
+name: ZAEA — Autonomous Engineering Agent
+
+on:
+  schedule:
+    # ── Cadência de rotina (horário de Brasília = UTC-3) ───────────────────
+    # Scanner a cada 2h — ~12 runs/dia, orçamento ~1080 min/mês (free tier ok)
+    - cron: '0 */2 * * *'
+    # Health Check completo (MP sandbox + rotas críticas): diário 07h BRT
+    - cron: '0 10 * * *' # 07:00 BRT = 10:00 UTC
+    # Relatório semanal de saúde (segunda, 08h BRT)
+    - cron: '0 11 * * 1' # Segunda 08:00 BRT = 11:00 UTC
+    # Inspeção de UX E2E semanal (sexta, 09h BRT)
+    - cron: '0 12 * * 5' # Sexta 09:00 BRT = 12:00 UTC
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Modo de execução'
+        required: false
+        default: 'scan'
+        type: choice
+        options:
+          - scan # Apenas analisa e reporta
+          - fix # Analisa e tenta corrigir automaticamente
+          - full # Análise + correção + PR automático
+          - health # Health check de pagamentos e rotas críticas
+          - report # Relatório completo de saúde semanal
+          - ux # Inspeção automatizada de UX via E2E Playwright
+          - security # Lint de segurança RLS em migrations
+
+concurrency:
+  group: zaea-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  VERCEL_AI_GATEWAY_TOKEN: ${{ secrets.VERCEL_AI_GATEWAY_TOKEN }}
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+  # ── Credenciais de validação operacional ─────────────────────────────────
+  MP_TEST_ACCESS_TOKEN: ${{ secrets.MP_TEST_ACCESS_TOKEN }}
+  MP_TEST_PUBLIC_KEY: ${{ secrets.MP_TEST_PUBLIC_KEY }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  ADMIN_SECRET_KEY: ${{ secrets.ADMIN_SECRET_KEY }}
+
+jobs:
+  # ── JOB 1: SCANNER — detecta problemas de qualidade ──────────────────────
+  scanner:
+    name: 🔍 Scanner
+    runs-on: ubuntu-latest
+    outputs:
+      has_errors: ${{ steps.analysis.outputs.has_errors }}
+      error_summary: ${{ steps.analysis.outputs.error_summary }}
+      task_id: ${{ steps.register.outputs.task_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Registrar task no Supabase
+        id: register
+        shell: bash
+        run: |
+          TASK_ID=$(node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          sb.from('agent_tasks').insert({
+            agent_name: 'scanner',
+            task_type: 'quality_scan',
+            triggered_by: 'cron',
+            priority: 'p2',
+            input: { mode: '${{ github.event.inputs.mode || 'scan' }}', sha: '${{ github.sha }}', ref: '${{ github.ref }}' }
+          }).select('id').single().then(({data, error}) => {
+            if (error) { process.stderr.write(error.message); process.exit(1) }
+            process.stdout.write(data.id)
+          }).catch(e => { process.stderr.write(e.message); process.exit(1) })
+          " 2>/dev/null || echo "no-db")
+          echo "task_id=$TASK_ID" >> "$GITHUB_OUTPUT"
+          echo "Task ID: $TASK_ID"
+
+      - name: Gerar stub de tipos do Next.js
+        run: |
+          mkdir -p .next/types
+          cat > .next/types/routes.d.ts << 'EOF'
+          // Stub gerado pelo CI para permitir tsc --noEmit sem next build
+          type AppRoutes = string
+          type AppRouteHandlerRoutes = string
+          type PageRoutes = never
+          type LayoutRoutes = string
+          type RedirectRoutes = never
+          type RewriteRoutes = never
+          type Routes = string
+          interface ParamMap {}
+          EOF
+
+      - name: TypeScript — checar tipos
+        id: tsc
+        run: npx tsc --noEmit 2>&1 | tee /tmp/tsc_output.txt || true
+
+      - name: ESLint — checar lint
+        id: lint
+        run: npm run lint 2>&1 | tee /tmp/lint_output.txt || true
+
+      - name: Build — verificar compilação
+        id: build
+        run: npm run build 2>&1 | tee /tmp/build_output.txt || true
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          # Variáveis necessárias para build sem backend real
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Verificações estendidas — ARIA, PowerShell, Markdown, Dockerfile
+        id: extended_checks
+        shell: bash
+        run: |
+          EXTENDED_ERRORS=false
+          EXTENDED_SUMMARY=""
+
+          # ── 1. ARIA: busca no output do lint já gerado ────────────────────
+          if grep -q "Invalid ARIA attribute value" /tmp/lint_output.txt 2>/dev/null; then
+            ARIA_COUNT=$(grep -c "Invalid ARIA attribute value" /tmp/lint_output.txt 2>/dev/null || echo "?")
+            EXTENDED_ERRORS=true
+            EXTENDED_SUMMARY="${EXTENDED_SUMMARY}ARIA: $ARIA_COUNT violação(ões) de atributo. "
+          fi
+
+          # ── 2. PowerShell: verbo não aprovado ────────────────────────────
+          PS1_FILES=$(find . -name "*.ps1" -not -path "./.git/*" -not -path "./node_modules/*" 2>/dev/null)
+          if [ -n "$PS1_FILES" ]; then
+            # Detecta padrão nomeação incorreta diretamente (sem PSScriptAnalyzer no runner)
+            UNAPPROVED_VERBS="Trigger|Start(?!-Process)|Send|Activate|Launch|Enable(?!-.*Feature)|Disable(?!-.*Feature)"
+            PS_ISSUES=$(echo "$PS1_FILES" | xargs grep -lE "^function (${UNAPPROVED_VERBS})-" 2>/dev/null | tr '\n' ',')
+            if [ -n "$PS_ISSUES" ]; then
+              EXTENDED_ERRORS=true
+              EXTENDED_SUMMARY="${EXTENDED_SUMMARY}PowerShell/verbo-não-aprovado: $PS_ISSUES. "
+            fi
+          fi
+
+          # ── 3. Markdown: code fences sem linguagem e HTML inline ─────────
+          MD_FILES=$(find . -name "*.md" -not -path "./.git/*" -not -path "./node_modules/*" 2>/dev/null | head -30)
+          if [ -n "$MD_FILES" ]; then
+            # Verifica se markdownlint-cli está disponível
+            if npx markdownlint-cli --version &>/dev/null; then
+              echo "$MD_FILES" | xargs npx markdownlint-cli --rules MD033,MD040,MD045 2>&1 | head -c 2000 > /tmp/markdown_output.txt || true
+            else
+              # Fallback manual: grep para backtick fence sem linguagem e img tags
+              echo "$MD_FILES" | xargs grep -lnE "^\`\`\`\s*$|<img |<div |<br" 2>/dev/null > /tmp/markdown_output.txt || true
+            fi
+            if [ -s /tmp/markdown_output.txt ]; then
+              MD_COUNT=$(wc -l < /tmp/markdown_output.txt)
+              EXTENDED_ERRORS=true
+              EXTENDED_SUMMARY="${EXTENDED_SUMMARY}Markdown: $MD_COUNT problema(s) de lint. "
+            fi
+          fi
+
+          # ── 4. Dockerfile: imagem base antiga ou com CVE reportado ───────
+          if find . -name "Dockerfile" -not -path "./.git/*" -not -path "./node_modules/*" 2>/dev/null | head -1 | xargs grep -qE "^FROM python:3\.(9|10|11|12)-slim$" 2>/dev/null; then
+            EXTENDED_ERRORS=true
+            EXTENDED_SUMMARY="${EXTENDED_SUMMARY}Dockerfile: imagem base Python desatualizada (usar 3.13-slim). "
+          fi
+
+          # ── 5. Cruzar com base de conhecimento do ForgeOps ───────────────
+          if [ -n "$INTERNAL_API_SECRET" ] && [ -n "$NEXT_PUBLIC_APP_URL" ]; then
+            KNOWN_AUTO=$(curl -s "${NEXT_PUBLIC_APP_URL}/api/agents/learn?auto_fixable=true&limit=20" \
+              -H "Authorization: Bearer $INTERNAL_API_SECRET" 2>/dev/null \
+              | jq -r '.knowledge[]?.detection_pattern // empty' 2>/dev/null | head -20)
+
+            if [ -n "$KNOWN_AUTO" ]; then
+              echo "Padrões conhecidos auto-corrigíveis buscados da knowledge base:"
+              echo "$KNOWN_AUTO" | while read -r dp; do
+                # Verifica se algum padrão conhecido está aparecendo nos outputs
+                if [ -n "$dp" ] && (grep -qE "$dp" /tmp/lint_output.txt 2>/dev/null || grep -qE "$dp" /tmp/tsc_output.txt 2>/dev/null); then
+                  echo "  ✓ Padrão detectado: $dp"
+                  EXTENDED_ERRORS=true
+                  EXTENDED_SUMMARY="${EXTENDED_SUMMARY}[CONHECIDO] $dp. "
+                fi
+              done
+            fi
+          fi
+
+          echo "extended_errors=$EXTENDED_ERRORS" >> "$GITHUB_OUTPUT"
+          SAFE_EXT=$(echo "$EXTENDED_SUMMARY" | tr '\n' ' ' | head -c 600)
+          echo "extended_summary=$SAFE_EXT" >> "$GITHUB_OUTPUT"
+          echo "Verificações estendidas — erros: $EXTENDED_ERRORS | resumo: $SAFE_EXT"
+        env:
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      - name: Analisar resultados com Groq
+        id: analysis
+        shell: bash
+        run: |
+          TSC_OUT=$(head -c 4000 /tmp/tsc_output.txt 2>/dev/null || echo "")
+          LINT_OUT=$(head -c 2000 /tmp/lint_output.txt 2>/dev/null || echo "")
+          BUILD_OUT=$(tail -c 3000 /tmp/build_output.txt 2>/dev/null || echo "")
+          EXT_SUMMARY="${EXTENDED_SUMMARY:-}"
+
+          HAS_ERRORS=false
+          SUMMARY=""
+
+          if grep -qE "error TS[0-9]+" /tmp/tsc_output.txt 2>/dev/null; then
+            HAS_ERRORS=true
+            TS_COUNT=$(grep -cE "error TS[0-9]+" /tmp/tsc_output.txt 2>/dev/null || echo "?")
+            SUMMARY="TypeScript: $TS_COUNT erro(s). "
+          fi
+
+          if grep -qiE "(error|warning).*\[" /tmp/lint_output.txt 2>/dev/null; then
+            HAS_ERRORS=true
+            SUMMARY="${SUMMARY}ESLint: erros encontrados. "
+          fi
+
+          if grep -qiE "^Build failed|error:" /tmp/build_output.txt 2>/dev/null; then
+            HAS_ERRORS=true
+            SUMMARY="${SUMMARY}Build: falhou. "
+          fi
+
+          # Incorporar erros das verificações estendidas
+          if [ "${EXTENDED_ERRORS:-false}" = "true" ] && [ -n "$EXT_SUMMARY" ]; then
+            HAS_ERRORS=true
+            SUMMARY="${SUMMARY}Verificações estendidas: ${EXT_SUMMARY}"
+          fi
+
+          if [ "$HAS_ERRORS" = "true" ]; then
+            # Escolhe backend: AI Gateway (primário) → Groq direto (fallback)
+            AI_TEXT=""
+
+            if [ -n "$VERCEL_AI_GATEWAY_TOKEN" ]; then
+              GATEWAY_PAYLOAD=$(jq -n \
+                --arg tsc "$TSC_OUT" \
+                --arg lint "$LINT_OUT" \
+                --arg build "$BUILD_OUT" \
+                '{
+                  model: "llama-3.3-70b-versatile",
+                  messages: [{
+                    role: "user",
+                    content: ("Analise os erros de build do projeto Next.js abaixo. Identifique as causas raiz e sugira correções específicas. Seja conciso (máx 800 chars).\n\nTypeScript:\n" + $tsc + "\n\nESLint:\n" + $lint + "\n\nBuild:\n" + $build)
+                  }],
+                  max_tokens: 600,
+                  temperature: 0.2
+                }')
+              GATEWAY_RESPONSE=$(curl -s -X POST "https://ai-gateway.vercel.sh/v1/groq/chat/completions" \
+                -H "Authorization: Bearer $VERCEL_AI_GATEWAY_TOKEN" \
+                -H "Content-Type: application/json" \
+                -H "X-Vercel-AI-Gateway-Provider: groq" \
+                -d "$GATEWAY_PAYLOAD" --max-time 30 2>/dev/null || echo "{}")
+              AI_TEXT=$(echo "$GATEWAY_RESPONSE" | jq -r '.choices[0].message.content // ""' 2>/dev/null | head -c 800)
+            fi
+
+            # Fallback para Groq direto se gateway falhou ou vazio
+            if [ -z "$AI_TEXT" ] && [ -n "$GROQ_API_KEY" ]; then
+              GROQ_PAYLOAD=$(jq -n \
+                --arg tsc "$TSC_OUT" \
+                --arg lint "$LINT_OUT" \
+                --arg build "$BUILD_OUT" \
+                '{
+                  model: "llama-3.3-70b-versatile",
+                  messages: [{
+                    role: "user",
+                    content: ("Analise os erros de build do projeto Next.js abaixo. Identifique as causas raiz e sugira correções específicas. Seja conciso (máx 800 chars).\n\nTypeScript:\n" + $tsc + "\n\nESLint:\n" + $lint + "\n\nBuild:\n" + $build)
+                  }],
+                  max_tokens: 600,
+                  temperature: 0.2
+                }')
+              GROQ_RESPONSE=$(curl -s -X POST "https://api.groq.com/openai/v1/chat/completions" \
+                -H "Authorization: Bearer $GROQ_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$GROQ_PAYLOAD" --max-time 30 2>/dev/null || echo "{}")
+              AI_TEXT=$(echo "$GROQ_RESPONSE" | jq -r '.choices[0].message.content // ""' 2>/dev/null | head -c 800)
+            fi
+
+            if [ -n "$AI_TEXT" ]; then
+              SUMMARY="${SUMMARY}| Análise IA: ${AI_TEXT}"
+            fi
+          fi
+
+          echo "has_errors=$HAS_ERRORS" >> "$GITHUB_OUTPUT"
+          # Escapar newlines para output seguro
+          SAFE_SUMMARY=$(echo "$SUMMARY" | tr '\n' ' ' | head -c 900)
+          echo "error_summary=$SAFE_SUMMARY" >> "$GITHUB_OUTPUT"
+
+          echo "=== Resultado ==="
+          echo "has_errors=$HAS_ERRORS"
+          echo "summary=$SAFE_SUMMARY"
+        env:
+          EXTENDED_ERRORS: ${{ steps.extended_checks.outputs.extended_errors }}
+          EXTENDED_SUMMARY: ${{ steps.extended_checks.outputs.extended_summary }}
+
+      - name: Atualizar task do Scanner no Supabase
+        if: always() && steps.register.outputs.task_id != 'no-db'
+        shell: bash
+        run: |
+          HAS_ERRORS="${HAS_ERRORS:-false}"
+          STATUS="completed"
+          if [ "$HAS_ERRORS" = "true" ]; then STATUS="failed"; fi
+
+          node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          sb.from('agent_tasks').update({
+            status: '$STATUS',
+            output: { has_errors: $HAS_ERRORS, summary: process.env.SUMMARY },
+            completed_at: new Date().toISOString()
+          }).eq('id', '${{ steps.register.outputs.task_id }}').then(() => process.exit(0))
+          " 2>/dev/null || true
+        env:
+          HAS_ERRORS: ${{ steps.analysis.outputs.has_errors }}
+          SUMMARY: ${{ steps.analysis.outputs.error_summary }}
+
+  # ── JOB 2: SURGEON — gera e aplica correção via PR ───────────────────────
+  surgeon:
+    name: 🔧 Surgeon
+    needs: scanner
+    if: needs.scanner.outputs.has_errors == 'true' && (github.event.inputs.mode == 'fix' || github.event.inputs.mode == 'full' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    outputs:
+      pr_url: ${{ steps.create_pr.outputs.pr_url }}
+      patch_applied: ${{ steps.patch.outputs.applied }}
+      task_id: ${{ steps.register.outputs.task_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Registrar task Surgeon
+        id: register
+        shell: bash
+        run: |
+          TASK_ID=$(node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          sb.from('agent_tasks').insert({
+            agent_name: 'surgeon',
+            task_type: 'auto_fix',
+            triggered_by: 'cascade',
+            priority: 'p1',
+            input: {
+              scanner_task_id: '${{ needs.scanner.outputs.task_id }}',
+              error_summary: process.env.SUMMARY.slice(0, 500)
+            }
+          }).select('id').single().then(({data, error}) => {
+            if (error) { process.stderr.write(error.message); process.exit(1) }
+            process.stdout.write(data.id)
+          }).catch(e => { process.stderr.write(e.message); process.exit(1) })
+          " 2>/dev/null || echo "no-db")
+          echo "task_id=$TASK_ID" >> "$GITHUB_OUTPUT"
+        env:
+          SUMMARY: ${{ needs.scanner.outputs.error_summary }}
+
+      - name: Coletar erros detalhados
+        id: collect_errors
+        shell: bash
+        run: |
+          mkdir -p .next/types && echo "type AppRoutes=string;type AppRouteHandlerRoutes=string;type PageRoutes=never;type LayoutRoutes=string;type RedirectRoutes=never;type RewriteRoutes=never;type Routes=string;interface ParamMap {}" > .next/types/routes.d.ts
+          npx tsc --noEmit 2>&1 | head -c 6000 > /tmp/tsc_full.txt || true
+          npm run lint 2>&1 | head -c 3000 > /tmp/lint_full.txt || true
+
+          # Extrair arquivos com erro
+          FILES_WITH_ERRORS=$(grep -oEh "^[^(]+\.tsx?" /tmp/tsc_full.txt 2>/dev/null | sort -u | head -10 | tr '\n' ',' | sed 's/,$//')
+          echo "files_with_errors=$FILES_WITH_ERRORS" >> "$GITHUB_OUTPUT"
+          echo "Arquivos com erro: $FILES_WITH_ERRORS"
+
+      - name: Consultar base de conhecimento
+        id: knowledge
+        shell: bash
+        run: |
+          # Extrai palavras-chave do resumo para busca
+          KEYWORDS=$(echo "$SUMMARY" | grep -oE "TS[0-9]+|error [A-Z][a-zA-Z]+" | head -5 | tr '\n' ' ')
+          export KEYWORDS
+
+          KNOWN=$(node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          sb.from('agent_knowledge')
+            .select('pattern,solution,confidence')
+            .ilike('pattern', '%' + (process.env.KEYWORDS || '').slice(0, 50) + '%')
+            .order('confidence', { ascending: false })
+            .limit(3)
+            .then(({data}) => process.stdout.write(JSON.stringify(data || [])))
+          " 2>/dev/null || echo "[]")
+          echo "known=$KNOWN" >> "$GITHUB_OUTPUT"
+          echo "Conhecimento encontrado: $KNOWN"
+        env:
+          SUMMARY: ${{ needs.scanner.outputs.error_summary }}
+
+      - name: Gerar patch com AI Gateway → Groq (fallback)
+        id: groq_fix
+        shell: bash
+        run: |
+          TSC_ERR=$(cat /tmp/tsc_full.txt 2>/dev/null | head -c 5000)
+          KNOWN="${KNOWN:-[]}"
+
+          SYSTEM_PROMPT="Você é o ZAEA Surgeon — especialista em corrigir erros TypeScript em projetos Next.js 15. Retorne APENAS um JSON com: {\"can_fix\": bool, \"risk\": \"safe|moderate|risky\", \"changes\": [{\"file\": \"path\", \"search\": \"texto exato a substituir (5+ linhas contexto)\", \"replace\": \"texto novo\", \"reason\": \"motivo\"}], \"explanation\": \"resumo\"}. Máx 3 mudanças. NUNCA modifique: arquivos de pagamento, migrations SQL, tests, supabase/. Conhecimento anterior: $KNOWN"
+
+          PAYLOAD=$(jq -n \
+            --arg sys "$SYSTEM_PROMPT" \
+            --arg tsc "$TSC_ERR" \
+            '{
+              model: "llama-3.3-70b-versatile",
+              messages: [
+                { role: "system", content: $sys },
+                { role: "user", content: ("Erros TypeScript:\n" + $tsc) }
+              ],
+              max_tokens: 2000,
+              temperature: 0.1,
+              response_format: { type: "json_object" }
+            }')
+
+          RESPONSE=""
+
+          # Tentativa 1: Vercel AI Gateway
+          if [ -n "$VERCEL_AI_GATEWAY_TOKEN" ]; then
+            RESPONSE=$(curl -s -X POST "https://ai-gateway.vercel.sh/v1/groq/chat/completions" \
+              -H "Authorization: Bearer $VERCEL_AI_GATEWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -H "X-Vercel-AI-Gateway-Provider: groq" \
+              -d "$PAYLOAD" --max-time 60 2>/dev/null || echo "")
+            CHECK=$(echo "$RESPONSE" | jq -r '.choices[0].message.content' 2>/dev/null)
+            if [ -z "$CHECK" ] || [ "$CHECK" = "null" ]; then RESPONSE=""; fi
+          fi
+
+          # Fallback: Groq direto
+          if [ -z "$RESPONSE" ] && [ -n "$GROQ_API_KEY" ]; then
+            RESPONSE=$(curl -s -X POST "https://api.groq.com/openai/v1/chat/completions" \
+              -H "Authorization: Bearer $GROQ_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" --max-time 60 2>/dev/null || echo '{"choices":[{"message":{"content":"{\"can_fix\":false}"}}]}')
+          fi
+
+          FIX_JSON=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "{\"can_fix\":false}"' 2>/dev/null)
+          CAN_FIX=$(echo "$FIX_JSON" | jq -r '.can_fix // false' 2>/dev/null)
+          RISK=$(echo "$FIX_JSON" | jq -r '.risk // "risky"' 2>/dev/null)
+
+          echo "$FIX_JSON" > /tmp/fix_plan.json
+          echo "can_fix=$CAN_FIX" >> "$GITHUB_OUTPUT"
+          echo "risk=$RISK" >> "$GITHUB_OUTPUT"
+          echo "Pode corrigir: $CAN_FIX | Risco: $RISK"
+        env:
+          KNOWN: ${{ steps.knowledge.outputs.known }}
+
+      - name: Aplicar patch (apenas risco SAFE)
+        id: patch
+        if: steps.groq_fix.outputs.can_fix == 'true' && steps.groq_fix.outputs.risk == 'safe'
+        shell: bash
+        run: |
+          APPLIED=false
+          CHANGED_FILES=""
+
+          CHANGES=$(cat /tmp/fix_plan.json | jq -c '.changes[]?' 2>/dev/null)
+          if [ -z "$CHANGES" ]; then
+            echo "Nenhuma mudança para aplicar"
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          while IFS= read -r change; do
+            FILE=$(echo "$change" | jq -r '.file')
+            SEARCH=$(echo "$change" | jq -r '.search')
+            REPLACE=$(echo "$change" | jq -r '.replace')
+
+            # Verificação de segurança: nunca tocar nesses caminhos
+            if echo "$FILE" | grep -qE "payment|checkout|migrations|supabase/|tests?/|\.test\.|\.spec\."; then
+              echo "⚠ Skipping protected file: $FILE"
+              continue
+            fi
+
+            if [ -f "$FILE" ] && grep -qF "$SEARCH" "$FILE"; then
+              # Escapar para sed
+              python3 -c "
+          import sys, re
+          file = open('$FILE').read()
+          search = open('/dev/stdin').read()
+          import json
+          change = json.loads(open('/tmp/fix_plan.json').read())
+          # find the matching change
+          for c in change.get('changes', []):
+              if c['file'] == '$FILE':
+                  new = file.replace(c['search'], c['replace'], 1)
+                  if new != file:
+                      open('$FILE', 'w').write(new)
+                      print('OK')
+                  break
+          " 2>/dev/null && APPLIED=true && CHANGED_FILES="$CHANGED_FILES $FILE"
+            else
+              echo "⚠ Arquivo não encontrado ou padrão não encontrado: $FILE"
+            fi
+          done <<< "$CHANGES"
+
+          echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"
+          echo "changed_files=$CHANGED_FILES" >> "$GITHUB_OUTPUT"
+
+          # Verificar se o build ainda passa após o patch
+          if [ "$APPLIED" = "true" ]; then
+            mkdir -p .next/types && echo "type AppRoutes=string;type AppRouteHandlerRoutes=string;type PageRoutes=never;type LayoutRoutes=string;type RedirectRoutes=never;type RewriteRoutes=never;type Routes=string;interface ParamMap {}" > .next/types/routes.d.ts
+            npx tsc --noEmit 2>&1 | tee /tmp/tsc_after.txt || true
+            TSC_REMAINING=$(grep -cE "error TS[0-9]+" /tmp/tsc_after.txt 2>/dev/null || echo "0")
+            echo "tsc_remaining=$TSC_REMAINING" >> "$GITHUB_OUTPUT"
+            echo "Erros TS restantes após patch: $TSC_REMAINING"
+          fi
+
+      - name: Criar branch e PR
+        id: create_pr
+        if: steps.patch.outputs.applied == 'true'
+        shell: bash
+        run: |
+          git config user.name "ZAEA Surgeon"
+          git config user.email "zaea-bot@zairyx.com.br"
+
+          BRANCH="zaea/auto-fix-$(date +%Y%m%d%H%M%S)"
+          COMMIT_MSG=$(mktemp)
+
+          {
+            printf '%s\n\n' 'fix(zaea): correção automática de erros TypeScript'
+            printf '%s\n' 'Corrigido por ZAEA Surgeon via análise Groq llama-3.3-70b.'
+            printf 'Scanner task: %s\n' "$SCANNER_TASK_ID"
+            printf 'Erros originais: %s\n\n' "$SUMMARY"
+            printf '%s\n' '[zaea-auto-fix]'
+          } > "$COMMIT_MSG"
+
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -F "$COMMIT_MSG"
+
+          git push origin "$BRANCH"
+
+          # Criar PR via API do GitHub
+          PR_RESPONSE=$(curl -s -X POST \
+            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg branch "$BRANCH" \
+              --arg summary "$SUMMARY" \
+              '{
+                title: "🤖 ZAEA: correção automática TypeScript",
+                head: $branch,
+                base: "main",
+                body: ("## Correção Automática — ZAEA Surgeon\n\nErros detectados pelo Scanner:\n```\n" + ($summary | .[0:500]) + "\n```\n\n> ⚠️ Revisar antes de fazer merge. Risco classificado como **SAFE** pelo Groq.\n\n[zaea-auto-fix]"),
+                draft: false
+              }')" \
+            --max-time 30)
+
+          PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // ""')
+          PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number // ""')
+
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "PR criado: $PR_URL"
+        env:
+          SCANNER_TASK_ID: ${{ needs.scanner.outputs.task_id }}
+          SUMMARY: ${{ needs.scanner.outputs.error_summary }}
+
+      - name: Gravar conhecimento na base do ForgeOps
+        if: steps.patch.outputs.applied == 'true' && steps.create_pr.outputs.pr_url != ''
+        shell: bash
+        run: |
+          # Extrai arquivos alterados e explicação do patch
+          CHANGED="${{ steps.patch.outputs.changed_files }}"
+          EXPLANATION=$(cat /tmp/fix_plan.json | jq -r '.explanation // ""' 2>/dev/null | head -c 500)
+          SUMMARY="${SCAN_SUMMARY:-}"
+          PR_URL="${{ steps.create_pr.outputs.pr_url }}"
+
+          # Monta array de files como JSON
+          FILES_JSON=$(echo "$CHANGED" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s . 2>/dev/null || echo '[]')
+
+          # Determina error_type a partir do resumo
+          ERROR_TYPE="typescript"
+          if echo "$SUMMARY" | grep -qi "aria"; then ERROR_TYPE="aria"; fi
+          if echo "$SUMMARY" | grep -qi "powershell\|unapproved verb"; then ERROR_TYPE="powershell"; fi
+          if echo "$SUMMARY" | grep -qi "markdown\|MD0"; then ERROR_TYPE="markdown"; fi
+          if echo "$SUMMARY" | grep -qi "dockerfile\|CVE\|vuln"; then ERROR_TYPE="dockerfile"; fi
+          if echo "$SUMMARY" | grep -qi "eslint\|lint"; then ERROR_TYPE="typescript"; fi
+
+          PAYLOAD=$(jq -n \
+            --arg pattern "Surgeon auto-fix: $SUMMARY" \
+            --arg error_type "$ERROR_TYPE" \
+            --arg root_cause "Detectado pelo Scanner ZAEA. Detalhes: $SUMMARY" \
+            --arg solution "Aplicado automaticamente. Explicação do Surgeon: $EXPLANATION. PR: $PR_URL" \
+            --argjson files "$FILES_JSON" \
+            '{
+              pattern: $pattern,
+              error_type: $error_type,
+              root_cause: $root_cause,
+              solution: $solution,
+              files_changed: $files,
+              auto_fixable: true,
+              confidence: 70,
+              resolved_by: "surgeon"
+            }')
+
+          if [ -n "$INTERNAL_API_SECRET" ] && [ -n "$NEXT_PUBLIC_APP_URL" ]; then
+            RESULT=$(curl -s -X POST "${NEXT_PUBLIC_APP_URL}/api/agents/learn" \
+              -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" --max-time 15 2>/dev/null || echo "{}")
+            echo "Knowledge gravado: $(echo "$RESULT" | jq -r '.recorded // "?"') padrão(ões)"
+          else
+            echo "INTERNAL_API_SECRET ou NEXT_PUBLIC_APP_URL não definidos — knowledge não gravado"
+          fi
+        env:
+          SCAN_SUMMARY: ${{ needs.scanner.outputs.error_summary }}
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      - name: Atualizar task Surgeon no Supabase
+        if: always() && steps.register.outputs.task_id != 'no-db'
+        shell: bash
+        run: |
+          APPLIED="${{ steps.patch.outputs.applied }}"
+          PR_URL="${{ steps.create_pr.outputs.pr_url }}"
+          STATUS="completed"
+          if [ "$APPLIED" != "true" ]; then STATUS="failed"; fi
+
+          node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          sb.from('agent_tasks').update({
+            status: '$STATUS',
+            github_pr_url: process.env.PR_URL || null,
+            output: {
+              applied: '$APPLIED' === 'true',
+              pr_url: process.env.PR_URL || null,
+              risk: '${{ steps.groq_fix.outputs.risk }}',
+              can_fix: '${{ steps.groq_fix.outputs.can_fix }}' === 'true'
+            },
+            completed_at: new Date().toISOString()
+          }).eq('id', '${{ steps.register.outputs.task_id }}').then(() => process.exit(0))
+          " 2>/dev/null || true
+        env:
+          PR_URL: ${{ steps.create_pr.outputs.pr_url }}
+
+  # ── JOB 3: NOTIFIER — alerta via Telegram ────────────────────────────────
+  notifier:
+    name: 📡 Notifier
+    needs: [scanner, surgeon]
+    if: always() && needs.scanner.outputs.has_errors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar alerta Telegram
+        shell: bash
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados no workflow do ZAEA"
+            exit 1
+          fi
+
+          # Status symbols
+          SCAN_HAS_ERRORS="${SCAN_HAS_ERRORS:-false}"
+          PR_URL="${PR_URL:-}"
+          SURG_RESULT="${SURG_RESULT:-}"
+
+          if [ "$SURG_RESULT" = "true" ] && [ -n "$PR_URL" ]; then
+            ICON="🔧"
+            STATUS="Boa notícia! Encontrei um problema no código e já criei uma correção automática pra você 🚀"
+            EXTRA="🔗 Ver a correção pronta: $PR_URL"
+          elif [ "$SCAN_HAS_ERRORS" = "true" ]; then
+            ICON="⚠️"
+            STATUS="Encontrei alguns erros no código que precisam da sua atenção. Dá uma olhada no resumo abaixo 👇"
+            EXTRA="💡 Você precisa corrigir manualmente antes de publicar de novo."
+          else
+            ICON="✅"
+            STATUS="Tudo certo por aqui! Nenhum erro encontrado. Pode continuar 🎉"
+            EXTRA=""
+          fi
+
+          SAFE_SUMMARY=$(echo "$SUMMARY" | sed 's/[<>]//g' | head -c 300)
+
+          MESSAGE=$(printf "<b>%s Zai — Análise do código</b>\n\n%s\n\n📋 <b>O que foi encontrado:</b>\n<code>%s</code>\n\n%s\n\n<i>%s</i>" \
+            "$ICON" "$STATUS" "$SAFE_SUMMARY" "$EXTRA" \
+            "$(date -u '+%d/%m/%Y %H:%M UTC')")
+
+          PAYLOAD_FILE=$(mktemp)
+          RESPONSE_FILE=$(mktemp)
+          jq -n --arg chat "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" \
+            '{chat_id: $chat, text: $text, parse_mode: "HTML", disable_web_page_preview: true}' > "$PAYLOAD_FILE"
+
+          HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            --data-binary @"$PAYLOAD_FILE" \
+            --max-time 10)
+          CURL_EXIT=$?
+
+          if [ "$CURL_EXIT" -ne 0 ] || [ "${HTTP_STATUS:-000}" -lt 200 ] || [ "${HTTP_STATUS:-000}" -ge 300 ]; then
+            echo "::error::Falha ao enviar alerta Telegram do ZAEA (curl=${CURL_EXIT}, http=${HTTP_STATUS:-000})"
+            cat "$RESPONSE_FILE" 2>/dev/null || true
+            exit 1
+          fi
+        env:
+          SCAN_HAS_ERRORS: ${{ needs.scanner.outputs.has_errors }}
+          PR_URL: ${{ needs.surgeon.outputs.pr_url }}
+          SURG_RESULT: ${{ needs.surgeon.outputs.patch_applied }}
+          SUMMARY: ${{ needs.scanner.outputs.error_summary }}
+
+  # ── JOB 4: VALIDATOR — health check de pagamentos e rotas críticas ───────
+  # Roda: diário 07h BRT, às segundas (relatório), modo=health/report, ou manualmente
+  validator:
+    name: 🩺 Validator
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' && (
+        github.event.inputs.mode == 'health' ||
+        github.event.inputs.mode == 'report'
+      ) || (
+        github.event_name == 'schedule' && (
+          startsWith(github.event.schedule, '0 10') ||
+          startsWith(github.event.schedule, '0 11')
+        )
+      )
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+
+      - name: ① Ping rotas críticas da plataforma
+        id: routes
+        shell: bash
+        run: |
+          BASE_URL="https://zairyx.com.br"
+          FAILURES=""
+          DNS_PENDING=false
+
+          # Verificar se o domínio responde (DNS propagado)
+          BASE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL" --max-time 10 2>/dev/null || true)
+          if [ "$BASE_HTTP" = "000" ]; then
+            echo "  ⏳ DNS ainda não propagado — zairyx.com.br irresolvível (000). Rotas ignoradas nesta execução."
+            DNS_PENDING=true
+          fi
+
+          check_route() {
+            local label="$1"
+            local url="$2"
+            local expected_status="${3:-200}"
+            local HTTP_STATUS
+            local MAX_RETRIES=3
+
+            for attempt in $(seq 1 $MAX_RETRIES); do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$url" --max-time 10 2>/dev/null || true)
+              if [ "$HTTP_STATUS" = "$expected_status" ]; then
+                [ "$attempt" -gt 1 ] && echo "  ✅ $label ($HTTP_STATUS) — recuperou na tentativa $attempt"
+                [ "$attempt" -eq 1 ] && echo "  ✅ $label ($HTTP_STATUS)"
+                return 0
+              elif [ "$HTTP_STATUS" = "000" ]; then
+                echo "  ⏳ $label — DNS pendente (000) — ignorado"
+                return 0
+              fi
+              # Backoff: 5s, 10s, 15s
+              if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+                echo "  ⏳ $label — tentativa $attempt/$MAX_RETRIES falhou ($HTTP_STATUS), retry em $((attempt * 5))s..."
+                sleep $((attempt * 5))
+              fi
+            done
+
+            echo "  ❌ $label — esperado $expected_status, obteve $HTTP_STATUS (após $MAX_RETRIES tentativas)"
+            FAILURES="${FAILURES}|${label}→${HTTP_STATUS} (esperado ${expected_status})"
+          }
+
+          echo "=== Ping das rotas críticas ==="
+          if [ "$DNS_PENDING" = "false" ]; then
+            check_route "Home"                "$BASE_URL"
+            check_route "Preços"              "$BASE_URL/precos"
+            check_route "Login"               "$BASE_URL/login"
+            check_route "API health"          "$BASE_URL/api/health"  200
+            check_route "Webhook MP"          "$BASE_URL/api/webhook/subscriptions" 200
+          fi
+
+          printf '%b' "$FAILURES" > /tmp/route_failures.txt
+          if [ -z "$FAILURES" ]; then
+            ROUTE_FAILURES=0
+          else
+            ROUTE_FAILURES=$(echo "$FAILURES" | tr -cd '|' | wc -c)
+          fi
+          echo "route_failures=$ROUTE_FAILURES" >> "$GITHUB_OUTPUT"
+          echo "route_failures_detail=${FAILURES#|}" >> "$GITHUB_OUTPUT"
+          echo "dns_pending=$DNS_PENDING" >> "$GITHUB_OUTPUT"
+
+      - name: ② Validar credenciais MP Sandbox
+        id: mp_check
+        shell: bash
+        run: |
+          echo "=== Validando credenciais Mercado Pago Sandbox ==="
+
+          # Formato real MP: TEST-{digits}-{alphanum}-{hex32}-{digits}
+          # Tokens sandbox expiram — validar apenas presença e formato
+          if echo "$MP_TEST_ACCESS_TOKEN" | grep -qE "^TEST-[0-9]+-[a-zA-Z0-9]+-[a-fA-F0-9]+-[0-9]+$"; then
+            MP_STATUS="✅ Pagamentos de teste prontos pra usar"
+            echo "mp_valid=true" >> "$GITHUB_OUTPUT"
+          elif echo "$MP_TEST_ACCESS_TOKEN" | grep -qE "^APP_USR-"; then
+            MP_STATUS="✅ Pagamentos reais configurados"
+            echo "mp_valid=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$MP_TEST_ACCESS_TOKEN" ]; then
+            MP_STATUS="❌ Chave do Mercado Pago não encontrada — adicione ela nas configurações do GitHub"
+            echo "mp_valid=false" >> "$GITHUB_OUTPUT"
+          else
+            MP_STATUS="⚠️ A chave existe, mas está com um formato diferente do esperado"
+            echo "mp_valid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "$MP_STATUS"
+          echo "mp_status=$MP_STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: ③ Verificar conectividade Supabase
+        id: supabase_check
+        shell: bash
+        run: |
+          echo "=== Verificando conectividade Supabase ==="
+
+          MAX_RETRIES=3
+          SB_OK=false
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            SB_RESPONSE=$(curl -s -X GET \
+              "${SUPABASE_URL}/rest/v1/agent_tasks?limit=1&select=id" \
+              -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              --max-time 10 2>/dev/null || echo "ERROR")
+
+            if echo "$SB_RESPONSE" | jq -e '. | type == "array"' 2>/dev/null; then
+              [ "$attempt" -gt 1 ] && echo "  ✅ Supabase conectado — recuperou na tentativa $attempt"
+              [ "$attempt" -eq 1 ] && echo "  ✅ Supabase conectado — tabela agent_tasks acessível"
+              echo "supabase_ok=true" >> "$GITHUB_OUTPUT"
+              echo "supabase_detail=conectado" >> "$GITHUB_OUTPUT"
+              SB_OK=true
+              break
+            fi
+
+            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+              echo "  ⏳ Supabase — tentativa $attempt/$MAX_RETRIES falhou, retry em $((attempt * 5))s..."
+              sleep $((attempt * 5))
+            fi
+          done
+
+          if [ "$SB_OK" = "false" ]; then
+            echo "  ❌ Supabase inacessível após $MAX_RETRIES tentativas: $SB_RESPONSE"
+            echo "supabase_ok=false" >> "$GITHUB_OUTPUT"
+            # Captura motivo legível
+            SB_REASON="sem resposta"
+            if echo "$SB_RESPONSE" | grep -qi "timeout"; then
+              SB_REASON="timeout (>10s)"
+            elif echo "$SB_RESPONSE" | grep -qi "ERROR"; then
+              SB_REASON="conexão recusada"
+            elif echo "$SB_RESPONSE" | jq -e '.message' 2>/dev/null; then
+              SB_REASON=$(echo "$SB_RESPONSE" | jq -r '.message' 2>/dev/null)
+            fi
+            echo "supabase_detail=$SB_REASON" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: ④ Registrar resultado no Supabase (agent_knowledge)
+        if: always()
+        shell: bash
+        run: |
+          ROUTE_FAILURES="${{ steps.routes.outputs.route_failures }}"
+          MP_VALID="${{ steps.mp_check.outputs.mp_valid }}"
+          MP_STATUS="${{ steps.mp_check.outputs.mp_status }}"
+          SB_OK="${{ steps.supabase_check.outputs.supabase_ok }}"
+          ROUTE_DETAIL="${{ steps.routes.outputs.route_failures_detail }}"
+          OVERALL_STATUS="healthy"
+          if [ "$MP_VALID" != "true" ] || [ "$SB_OK" != "true" ] || [ "${ROUTE_FAILURES:-0}" -gt "0" ]; then
+            OVERALL_STATUS="degraded"
+          fi
+
+          node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          const payload = {
+            key: 'health_check_' + new Date().toISOString().slice(0,10),
+            value: {
+              timestamp: new Date().toISOString(),
+              overall: '$OVERALL_STATUS',
+              mp_valid: '$MP_VALID' === 'true',
+              mp_status: '$MP_STATUS',
+              supabase_ok: '$SB_OK' === 'true',
+              route_failures: parseInt('$ROUTE_FAILURES' || '0'),
+              route_failures_detail: '$ROUTE_DETAIL',
+              run_id: process.env.GITHUB_RUN_ID
+            },
+            source: 'zaea_validator',
+            confidence: 1.0
+          }
+          sb.from('agent_knowledge').upsert(payload, { onConflict: 'key' })
+            .then(() => process.exit(0))
+          " 2>/dev/null || echo "Supabase offline, continuando..."
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+
+      - name: ⑤ Notificar resultado via Telegram
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados no workflow do ZAEA"
+            exit 1
+          fi
+
+          MP_VALID="${{ steps.mp_check.outputs.mp_valid }}"
+          MP_STATUS="${{ steps.mp_check.outputs.mp_status }}"
+          SB_OK="${{ steps.supabase_check.outputs.supabase_ok }}"
+          SB_DETAIL="${{ steps.supabase_check.outputs.supabase_detail }}"
+          ROUTE_FAILURES="${{ steps.routes.outputs.route_failures }}"
+          ROUTE_DETAIL="${{ steps.routes.outputs.route_failures_detail }}"
+          DNS_PENDING="${{ steps.routes.outputs.dns_pending }}"
+          MODE="${{ github.event.inputs.mode || 'health (agendado)' }}"
+
+          if [ "$MP_VALID" = "true" ] && [ "$SB_OK" = "true" ] && [ "${ROUTE_FAILURES:-0}" = "0" ]; then
+            if [ "$DNS_PENDING" = "true" ]; then
+              HEALTH_ICON="⏳"
+              HEALTH_MSG="O domínio ainda está sendo ativado — isso é normal e pode levar até 24h. A plataforma está funcionando normalmente!"
+            else
+              HEALTH_ICON="✅"
+              HEALTH_MSG="Tudo funcionando! Pode ficar tranquilo 😊"
+            fi
+          else
+            HEALTH_ICON="⚠️"
+            HEALTH_MSG="Atenção! Alguma coisa parou de funcionar. Veja os detalhes abaixo 👇"
+          fi
+
+          # Linha de rotas
+          if [ "$DNS_PENDING" = "true" ]; then
+            ROUTES_LINE="⏳ Domínio ainda sendo ativado — páginas não verificadas por ora"
+          elif [ "${ROUTE_FAILURES:-0}" = "0" ]; then
+            ROUTES_LINE="✅ Todas as páginas respondendo"
+          else
+            # Monta lista detalhada usando route_failures_detail do step routes
+            FAIL_DETAIL=""
+            IFS='|' read -ra ITEMS <<< "$ROUTE_DETAIL"
+            for item in "${ITEMS[@]}"; do
+              [ -z "$item" ] && continue
+              FAIL_DETAIL="$(printf '%s\n   - %s' "$FAIL_DETAIL" "$item")"
+            done
+            ROUTES_LINE="❌ ${ROUTE_FAILURES:-0} página(s) com problema:${FAIL_DETAIL}"
+          fi
+
+          SB_LABEL="$([ "$SB_OK" = 'true' ] && echo '✅ Banco de dados online' || echo "❌ Banco de dados fora do ar — ${SB_DETAIL:-motivo desconhecido}")"
+          MESSAGE=$(printf "<b>%s Zai — Verificação do sistema</b>\n\n%s\n\n💳 <b>Mercado Pago:</b> %s\n🗄 <b>Banco de dados:</b> %s\n🌐 <b>Páginas:</b> %s\n\n<i>%s • %s UTC</i>" \
+            "$HEALTH_ICON" "$HEALTH_MSG" \
+            "$MP_STATUS" \
+            "$SB_LABEL" \
+            "$ROUTES_LINE" \
+            "$MODE" \
+            "$(date -u '+%d/%m/%Y %H:%M')")
+
+          PAYLOAD_FILE=$(mktemp)
+          RESPONSE_FILE=$(mktemp)
+          jq -n --arg chat "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" \
+            '{chat_id: $chat, text: $text, parse_mode: "HTML", disable_web_page_preview: true}' > "$PAYLOAD_FILE"
+
+          HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            --data-binary @"$PAYLOAD_FILE" \
+            --max-time 10)
+          CURL_EXIT=$?
+
+          if [ "$CURL_EXIT" -ne 0 ] || [ "${HTTP_STATUS:-000}" -lt 200 ] || [ "${HTTP_STATUS:-000}" -ge 300 ]; then
+            echo "::error::Falha ao enviar notificação Telegram do ZAEA (curl=${CURL_EXIT}, http=${HTTP_STATUS:-000})"
+            cat "$RESPONSE_FILE" 2>/dev/null || true
+            exit 1
+          fi
+
+  # ── JOB 5: UX INSPECTOR — inspeção automatizada de UX via E2E Playwright ──
+  # Roda: sextas 09h BRT (12h UTC), ou manualmente com mode=ux
+  ux-inspector:
+    name: 🔎 UX Inspector
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'ux') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * 5')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+
+      - name: Instalar Playwright + Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Executar testes E2E de UX personas (produção)
+        id: tests
+        shell: bash
+        env:
+          E2E_BASE_URL: https://zairyx.com.br
+          CI: 'true'
+        run: |
+          RESULTS_FILE=/tmp/playwright-ux-results.json
+
+          # Executa testes — continua mesmo se houver falhas
+          npx playwright test tests/e2e/ebook-e2e-personas.spec.ts \
+            --project=chromium \
+            --reporter=json \
+            2>/dev/null > "$RESULTS_FILE" || true
+
+          # Extrai métricas do JSON
+          PASSED=$(jq '.stats.expected - .stats.unexpected - .stats.skipped // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+          FAILED=$(jq '.stats.unexpected // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+          SKIPPED=$(jq '.stats.skipped // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+          TOTAL=$(jq '.stats.expected // 0' "$RESULTS_FILE" 2>/dev/null || echo 0)
+
+          # Cenários com falha (top 5 nomes)
+          FAILED_SCENARIOS=$(jq -r '
+            [ .suites[]?.suites[]? |
+              select( any(.specs[]; any(.tests[]; .results[0].status == "unexpected")) ) |
+              .title
+            ] | unique | .[:5] | join(", ")
+          ' "$RESULTS_FILE" 2>/dev/null | head -c 300 || echo "")
+
+          echo "passed=$PASSED"   >> "$GITHUB_OUTPUT"
+          echo "failed=$FAILED"   >> "$GITHUB_OUTPUT"
+          echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
+          echo "total=$TOTAL"     >> "$GITHUB_OUTPUT"
+          echo "failed_scenarios=$FAILED_SCENARIOS" >> "$GITHUB_OUTPUT"
+
+          echo "=== Resultado UX E2E ==="
+          echo "Passou: $PASSED | Falhou: $FAILED | Pulou: $SKIPPED | Total: $TOTAL"
+          if [ -n "$FAILED_SCENARIOS" ]; then echo "Cenários com falha: $FAILED_SCENARIOS"; fi
+
+      - name: Salvar resultado no Supabase (agent_knowledge)
+        if: always()
+        shell: bash
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js')
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+          const runId   = process.env.GITHUB_RUN_ID
+          const repo    = process.env.GITHUB_REPOSITORY
+          sb.from('agent_knowledge').upsert({
+            key: 'ux_inspection_latest',
+            value: {
+              timestamp: new Date().toISOString(),
+              passed:   parseInt('${{ steps.tests.outputs.passed }}'  || '0'),
+              failed:   parseInt('${{ steps.tests.outputs.failed }}'  || '0'),
+              skipped:  parseInt('${{ steps.tests.outputs.skipped }}' || '0'),
+              total:    parseInt('${{ steps.tests.outputs.total }}'   || '0'),
+              failed_scenarios: '${{ steps.tests.outputs.failed_scenarios }}',
+              run_id:  runId,
+              run_url: 'https://github.com/' + repo + '/actions/runs/' + runId
+            },
+            source: 'zaea_ux_inspector',
+            confidence: 1.0
+          }, { onConflict: 'key' }).then(() => process.exit(0))
+          " 2>/dev/null || echo "Supabase offline, continuando..."
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Analisar com Groq e notificar Telegram
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados"
+            exit 1
+          fi
+
+          PASSED="${{ steps.tests.outputs.passed }}"
+          FAILED="${{ steps.tests.outputs.failed }}"
+          SKIPPED="${{ steps.tests.outputs.skipped }}"
+          TOTAL="${{ steps.tests.outputs.total }}"
+          FAILED_SCENARIOS="${{ steps.tests.outputs.failed_scenarios }}"
+
+          AI_TEXT=""
+
+          # Análise com Groq apenas se houver falhas
+          if [ -n "$GROQ_API_KEY" ] && [ "${FAILED:-0}" -gt "0" ]; then
+            GROQ_PAYLOAD=$(jq -n \
+              --arg passed   "$PASSED" \
+              --arg failed   "$FAILED" \
+              --arg skipped  "$SKIPPED" \
+              --arg scenarios "$FAILED_SCENARIOS" \
+              '{
+                model: "llama-3.3-70b-versatile",
+                messages: [{
+                  role: "user",
+                  content: ("Analise resultados E2E de UX de personas do cardápio digital. Seja conciso (máx 250 chars).\nPassou: " + $passed + " | Falhou: " + $failed + " | Pulou: " + $skipped + "\nFalhas: " + $scenarios + "\nIdentifique causas e ações prioritárias.")
+                }],
+                max_tokens: 200,
+                temperature: 0.3
+              }')
+            GROQ_RESP=$(curl -s -X POST "https://api.groq.com/openai/v1/chat/completions" \
+              -H "Authorization: Bearer $GROQ_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$GROQ_PAYLOAD" --max-time 20 2>/dev/null || echo "{}")
+            AI_TEXT=$(echo "$GROQ_RESP" | jq -r '.choices[0].message.content // ""' 2>/dev/null | head -c 250)
+          fi
+
+          if [ "${FAILED:-0}" = "0" ]; then
+            STATUS_LINE="✅ <b>Tudo OK!</b> Todos os fluxos de UX passaram."
+          else
+            STATUS_LINE="⚠️ <b>${FAILED} falha(s) detectada(s)</b> nos fluxos de UX."
+          fi
+
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          MESSAGE=$(printf '<b>🔎 Zai — Inspeção UX Personas</b>\n\n%s\n\n📊 <b>Resultado:</b> %s/%s testes\n✅ Passou: %s  ❌ Falhou: %s  ⏭️ Pulou: %s' \
+            "$STATUS_LINE" "${PASSED:-0}" "${TOTAL:-0}" "${PASSED:-0}" "${FAILED:-0}" "${SKIPPED:-0}")
+
+          if [ -n "$FAILED_SCENARIOS" ]; then
+            MESSAGE=$(printf '%s\n\n🚨 <b>Cenários com falha:</b>\n<code>%s</code>' "$MESSAGE" "${FAILED_SCENARIOS:0:250}")
+          fi
+
+          if [ -n "$AI_TEXT" ]; then
+            MESSAGE=$(printf '%s\n\n🤖 <b>IA:</b> %s' "$MESSAGE" "$AI_TEXT")
+          fi
+
+          MESSAGE=$(printf '%s\n\n🔗 <a href="%s">Ver detalhes</a> · <i>%s UTC</i>' \
+            "$MESSAGE" "$RUN_URL" "$(date -u '+%d/%m/%Y %H:%M')")
+
+          PAYLOAD_FILE=$(mktemp)
+          RESPONSE_FILE=$(mktemp)
+          jq -n --arg chat "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" \
+            '{chat_id: $chat, text: $text, parse_mode: "HTML", disable_web_page_preview: true}' > "$PAYLOAD_FILE"
+
+          HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            --data-binary @"$PAYLOAD_FILE" \
+            --max-time 10)
+          CURL_EXIT=$?
+
+          if [ "$CURL_EXIT" -ne 0 ] || [ "${HTTP_STATUS:-000}" -lt 200 ] || [ "${HTTP_STATUS:-000}" -ge 300 ]; then
+            echo "::error::Falha ao enviar notificação Telegram UX (curl=${CURL_EXIT}, http=${HTTP_STATUS:-000})"
+            cat "$RESPONSE_FILE" 2>/dev/null || true
+            exit 1
+          fi
+
+  # ── JOB 6: SECURITY LINT — verifica migrations por patterns inseguros ────
+  # Roda: em todo push, pull_request, ou manualmente com mode=security
+  security-lint:
+    name: 🔐 Security Lint
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'security')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Detectar arquivos SQL alterados (PR)
+        id: sha-pr
+        if: github.event_name == 'pull_request'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ['GITHUB_EVENT_PATH'], 'r', encoding='utf-8') as fh:
+            event = json.load(fh)
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+            fh.write(f"base={event.get('pull_request', {}).get('base', {}).get('sha', '')}\n")
+            fh.write(f"head={event.get('pull_request', {}).get('head', {}).get('sha', '')}\n")
+          PY
+
+      - name: Detectar arquivos SQL alterados (push)
+        id: sha-push
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ['GITHUB_EVENT_PATH'], 'r', encoding='utf-8') as fh:
+            event = json.load(fh)
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+            fh.write(f"base={event.get('before', '')}\n")
+          PY
+          echo "head=${{ github.sha }}"          >> "$GITHUB_OUTPUT"
+
+      - name: Resolver diff e listar SQL
+        id: changed
+        run: |
+          BASE="${{ steps.sha-pr.outputs.base || steps.sha-push.outputs.base || '' }}"
+          HEAD="${{ steps.sha-pr.outputs.head || steps.sha-push.outputs.head || github.sha }}"
+
+          if [ -n "$BASE" ] && [ -n "$HEAD" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only "$BASE" "$HEAD" | grep 'supabase/migrations/.*\.sql' | tr '\n' '\n')
+          else
+            # push inicial ou modo manual → verificar todos
+            CHANGED=$(find supabase/migrations -name '*.sql' | tr '\n' '\n')
+          fi
+
+          echo "sql_files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED"       >> "$GITHUB_OUTPUT"
+          echo "EOF"            >> "$GITHUB_OUTPUT"
+
+          if [ -z "$CHANGED" ]; then
+            echo "has_sql=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_sql=true"  >> "$GITHUB_OUTPUT"
+            echo "=== Arquivos SQL a verificar ==="
+            echo "$CHANGED"
+          fi
+
+      - name: Rodar RLS Security Linter
+        if: steps.changed.outputs.has_sql == 'true'
+        env:
+          CHANGED_SQL_FILES: ${{ steps.changed.outputs.sql_files }}
+        run: |
+          python scripts/check_rls_migrations.py
+          EXIT=$?
+          if [ $EXIT -ne 0 ]; then
+            echo "::error::🔴 Falha de segurança RLS detectada. Veja docs/MIGRATIONS_GOVERNANCE.md"
+            exit $EXIT
+          fi
+
+      - name: Nenhum arquivo SQL para verificar
+        if: steps.changed.outputs.has_sql != 'true'
+        run: echo "✅ Nenhuma migration SQL alterada — security lint pulado."

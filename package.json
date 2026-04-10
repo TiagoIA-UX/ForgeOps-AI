@@ -1,0 +1,21 @@
+{
+  "name": "forgeops-ai",
+  "version": "1.0.0",
+  "description": "ForgeOps AI — Autonomous Engineering Agent for Next.js + Supabase platforms",
+  "private": true,
+  "scripts": {
+    "forge:seed": "tsx scripts/forge-seed-knowledge.ts",
+    "forge:seed:dry": "tsx scripts/forge-seed-knowledge.ts --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
