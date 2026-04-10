@@ -1,0 +1,296 @@
+# ======================================================
+# ZAEA — Pipeline Autônomo de Engenharia
+# Scanner → Surgeon → Validator → Notifier
+# Roda a cada 10 minutos | free tier: 2000 min/mês
+# ======================================================
+
+name: ZAEA Autonomous Pipeline
+
+on:
+  schedule:
+    # A cada 10 minutos (UTC)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Modo de execução"
+        required: false
+        type: choice
+        options:
+          - full      # Scanner + Surgeon + Validator + Notifier
+          - scan      # Apenas Scanner
+          - fix       # Apenas Surgeon (requer scan_task_id)
+          - sentinel  # Apenas Sentinel (monitoramento)
+        default: full
+      scan_task_id:
+        description: "ID da tarefa do Scanner (para modo fix)"
+        required: false
+        type: string
+
+# Evita execuções simultâneas do mesmo workflow
+concurrency:
+  group: zaea-pipeline
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  MODE: ${{ github.event.inputs.mode || 'full' }}
+
+jobs:
+  # ======================================================
+  # JOB 1 — SCANNER
+  # Detecta erros TypeScript, ESLint e build
+  # ======================================================
+  scanner:
+    name: "🔍 Scanner"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.mode != 'sentinel' }}
+    outputs:
+      task_id:      ${{ steps.dispatch.outputs.task_id }}
+      errors_found: ${{ steps.scan.outputs.errors_found }}
+      risk_level:   ${{ steps.scan.outputs.risk_level }}
+      has_errors:   ${{ steps.scan.outputs.has_errors }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Dispatch Scanner task
+        id: dispatch
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/agents/dispatch" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "agent": "scanner",
+              "taskType": "quality_scan",
+              "priority": "p1",
+              "input": {"sha": "${{ github.sha }}", "repo": "${{ github.repository }}"},
+              "triggeredBy": "cron"
+            }')
+          TASK_ID=$(echo $RESPONSE | jq -r '.taskId')
+          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
+          echo "Scanner task: $TASK_ID"
+
+      - name: Run TypeScript check
+        id: tsc
+        run: |
+          npx tsc --noEmit 2>&1 | tee tsc_output.txt || true
+          TSC_ERRORS=$(grep -c "error TS" tsc_output.txt || echo "0")
+          echo "tsc_errors=$TSC_ERRORS" >> $GITHUB_OUTPUT
+
+      - name: Run ESLint
+        id: lint
+        run: |
+          npx next lint --format json --output-file lint_output.json 2>/dev/null || true
+          LINT_ERRORS=$(cat lint_output.json 2>/dev/null | jq '[.[].messages[] | select(.severity==2)] | length' || echo "0")
+          echo "lint_errors=$LINT_ERRORS" >> $GITHUB_OUTPUT
+
+      - name: Evaluate risk and export results
+        id: scan
+        run: |
+          TSC_ERRORS=${{ steps.tsc.outputs.tsc_errors }}
+          LINT_ERRORS=${{ steps.lint.outputs.lint_errors }}
+          TOTAL=$((TSC_ERRORS + LINT_ERRORS))
+
+          if [ "$TOTAL" -eq "0" ]; then
+            RISK="SAFE"
+            HAS_ERRORS="false"
+          elif [ "$TOTAL" -gt "20" ]; then
+            RISK="RISKY"
+            HAS_ERRORS="true"
+          elif [ "$TOTAL" -gt "5" ]; then
+            RISK="MODERATE"
+            HAS_ERRORS="true"
+          else
+            RISK="SAFE"
+            HAS_ERRORS="true"
+          fi
+
+          echo "errors_found=$TOTAL"   >> $GITHUB_OUTPUT
+          echo "risk_level=$RISK"      >> $GITHUB_OUTPUT
+          echo "has_errors=$HAS_ERRORS" >> $GITHUB_OUTPUT
+          echo "Total errors: $TOTAL | Risk: $RISK"
+
+      - name: Upload scan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-results-${{ github.run_id }}
+          path: |
+            tsc_output.txt
+            lint_output.json
+          retention-days: 7
+
+  # ======================================================
+  # JOB 2 — SURGEON
+  # Gera patches automáticos via Groq AI
+  # ======================================================
+  surgeon:
+    name: "🔧 Surgeon"
+    runs-on: ubuntu-latest
+    needs: scanner
+    if: |
+      needs.scanner.outputs.has_errors == 'true' &&
+      (github.event.inputs.mode == 'full' || github.event.inputs.mode == 'fix' || github.event.inputs.mode == '')
+
+    outputs:
+      task_id:   ${{ steps.dispatch.outputs.task_id }}
+      pr_url:    ${{ steps.dispatch.outputs.pr_url }}
+      patched:   ${{ steps.dispatch.outputs.patched }}
+
+    steps:
+      - name: Dispatch Surgeon task
+        id: dispatch
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/agents/dispatch" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "agent": "surgeon",
+              "taskType": "auto_patch",
+              "priority": "${{ needs.scanner.outputs.risk_level == 'RISKY' && 'p0' || 'p1' }}",
+              "input": {
+                "scan_task_id": "${{ needs.scanner.outputs.task_id }}",
+                "risk_level": "${{ needs.scanner.outputs.risk_level }}",
+                "errors_found": ${{ needs.scanner.outputs.errors_found }}
+              },
+              "triggeredBy": "cascade"
+            }')
+
+          TASK_ID=$(echo $RESPONSE | jq -r '.taskId')
+          echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
+          echo "Surgeon task: $TASK_ID"
+
+      # Escalation: risco RISKY → não aplica automaticamente
+      - name: Escalate if RISKY
+        if: needs.scanner.outputs.risk_level == 'RISKY'
+        run: |
+          echo "⚠️ Risco RISKY detectado — escalando para revisão humana"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
+              "parse_mode": "HTML",
+              "text": "🔴 <b>ZAEA — Intervenção Humana Necessária</b>\n\nRisco: <b>RISKY</b>\nErros: <b>${{ needs.scanner.outputs.errors_found }}</b>\nCommit: <code>${{ github.sha }}</code>\n\nO Surgeon foi bloqueado. Revise manualmente."
+            }'
+
+  # ======================================================
+  # JOB 3 — VALIDATOR
+  # Valida patches antes de liberar
+  # ======================================================
+  validator:
+    name: "✅ Validator"
+    runs-on: ubuntu-latest
+    needs: [scanner, surgeon]
+    if: |
+      needs.surgeon.outputs.patched == 'true' &&
+      needs.scanner.outputs.risk_level != 'RISKY'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Validate — TypeScript
+        run: npx tsc --noEmit
+
+      - name: Validate — ESLint
+        run: npx next lint
+
+      - name: Dispatch Validator task
+        run: |
+          curl -s -X POST "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/agents/dispatch" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "agent": "validator",
+              "taskType": "patch_validation",
+              "priority": "p1",
+              "input": {
+                "surgery_task_id": "${{ needs.surgeon.outputs.task_id }}",
+                "branch_name": "${{ github.ref_name }}"
+              },
+              "triggeredBy": "cascade"
+            }'
+
+  # ======================================================
+  # JOB 4 — NOTIFIER (Sentinel)
+  # Envia resumo via Telegram sempre que o pipeline roda
+  # ======================================================
+  notifier:
+    name: "🛡️ Notifier"
+    runs-on: ubuntu-latest
+    needs: [scanner, surgeon, validator]
+    if: always()
+
+    steps:
+      - name: Dispatch Sentinel task
+        run: |
+          curl -s -X POST "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/agents/dispatch" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "agent": "sentinel",
+              "taskType": "pipeline_summary",
+              "priority": "p2",
+              "input": {
+                "scanner_status": "${{ needs.scanner.result }}",
+                "surgeon_status": "${{ needs.surgeon.result }}",
+                "validator_status": "${{ needs.validator.result }}",
+                "errors_found": ${{ needs.scanner.outputs.errors_found || 0 }},
+                "risk_level": "${{ needs.scanner.outputs.risk_level || 'SAFE' }}",
+                "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "triggeredBy": "cascade"
+            }'
+
+      - name: Send Telegram summary
+        if: always()
+        run: |
+          SCANNER="${{ needs.scanner.result }}"
+          SURGEON="${{ needs.surgeon.result }}"
+          ERRORS="${{ needs.scanner.outputs.errors_found || 0 }}"
+          RISK="${{ needs.scanner.outputs.risk_level || 'SAFE' }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [ "$SCANNER" = "success" ] && [ "$ERRORS" = "0" ]; then
+            ICON="✅"
+            MSG="Pipeline concluído sem erros"
+          elif [ "$SURGEON" = "success" ]; then
+            ICON="🔧"
+            MSG="Patches aplicados com sucesso"
+          elif [ "$SCANNER" = "failure" ] || [ "$SURGEON" = "failure" ]; then
+            ICON="🔴"
+            MSG="Falha no pipeline"
+          else
+            ICON="ℹ️"
+            MSG="Pipeline finalizado"
+          fi
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
+              \"parse_mode\": \"HTML\",
+              \"text\": \"$ICON <b>ZAEA Pipeline</b>\\n\\nStatus: <b>$MSG</b>\\nErros: <b>$ERRORS</b>\\nRisco: <b>$RISK</b>\\n\\n<a href=\\\"$RUN_URL\\\">Ver execução</a>\"
+            }"
