@@ -155,6 +155,28 @@ Response: { tasks: [...], knowledge: [...], stats: {...} }
 
 ---
 
+## ForgeOps Operation Contract (Official)
+
+A partir da versão atual, a integração operacional do ForgeOps AI passa a ser regida por contrato global.
+
+- Contrato oficial: `docs/operation-contract.md`
+- Guia de integração: `docs/integration-guide.md`
+- Checklist de adoção: `docs/adoption-checklist.md`
+- Roadmap de rollout: `docs/rollout-roadmap.md`
+
+SDK inicial do contrato operacional:
+
+- `lib/forgeops/operation-tracker.ts`
+
+Esse módulo padroniza:
+
+- operationId e correlationId
+- estados explícitos (`pending`, `processing`, `completed`, `failed`)
+- transições válidas por matriz
+- emissão de eventos estruturados (`<flow>.start|processing|completed|failed`)
+
+---
+
 ## Admin Dashboard
 
 Acesse em `/admin/agentes`:
